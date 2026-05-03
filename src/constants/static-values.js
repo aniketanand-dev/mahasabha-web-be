@@ -1,0 +1,13 @@
+const STATIC_VALUES = Object.freeze({
+  API_PREFIX: "/api/v1",
+  AUTH_PREFIX: "/auth",
+  DEFAULT_ADMIN_USERNAME: "admin",
+  DEFAULT_ADMIN_PASSWORD: "Mahasabha@123",
+  DEFAULT_ADMIN_EMAIL: "admin@mahasabha.local",
+  PASSWORD_RESET_URL_PATH: "/admin/reset-password",
+  PASSWORD_RESET_TOKEN_BYTES: 32,
+  DEFAULT_PASSWORD_RESET_EXPIRY_MINUTES: 15,
+  MIN_PASSWORD_LENGTH: 8
+});
+
+module.exports = STATIC_VALUES;
