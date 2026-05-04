@@ -5,8 +5,7 @@ const ScholarshipController = require("../../controllers/scholarship.controller"
 const asyncHandler = require("../../utils/async-handler");
 const AppError = require("../../utils/app-error");
 const { STATUS_CODES } = require("../../constants");
-const paths = require("../../config/paths");
-const { sanitizeBaseName, ensureStorage, createManagedSrc } = require("../../services/media-storage.service");
+const { sanitizeBaseName, ensureStorage, getUploadFolderDir, createManagedSrc } = require("../../services/media-storage.service");
 const { requireAdminAuth } = require("../../middleware/auth.middleware");
 
 const router = express.Router();
@@ -16,7 +15,7 @@ const storage = multer.diskStorage({
   destination: async (_request, _file, callback) => {
     try {
       await ensureStorage("scholarships");
-      callback(null, path.join(paths.uploadsRootDir, "scholarships"));
+      callback(null, getUploadFolderDir("scholarships"));
     } catch (error) {
       callback(error);
     }
@@ -100,6 +99,11 @@ router.get(
 );
 
 router.get(
+  "/academic-years",
+  asyncHandler(controller.listAcademicYears)
+);
+
+router.get(
   "/applications",
   requireAdminAuth,
   asyncHandler(controller.listApplications)
@@ -121,6 +125,12 @@ router.post(
   ]),
   attachManagedFilePaths,
   asyncHandler(controller.submitApplication)
+);
+
+router.patch(
+  "/applications/:id/status",
+  requireAdminAuth,
+  asyncHandler(controller.updateApplicationStatus)
 );
 
 module.exports = router;

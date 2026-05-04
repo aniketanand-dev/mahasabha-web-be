@@ -5,7 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "migrate:scholarship-academic-years": "node scripts/migrate-scholarship-academic-years.js",
+    "migrate:uploads-to-backend": "node scripts/migrate-uploads-to-backend.js"
   },
   "keywords": [
     "nodejs",

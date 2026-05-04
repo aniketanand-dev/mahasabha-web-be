@@ -7,6 +7,7 @@ const { UPLOAD } = require("../constants");
 const {
   sanitizeBaseName,
   isAllowedFolder,
+  getUploadFolderDir,
   createManagedSrc,
   ensureStorage,
   readGallery,
@@ -27,7 +28,7 @@ const storage = multer.diskStorage({
       }
 
       await ensureStorage(folder);
-      callback(null, path.join(paths.uploadsRootDir, folder));
+      callback(null, getUploadFolderDir(folder));
     } catch (error) {
       callback(error);
     }
@@ -43,7 +44,7 @@ const galleryStorage = multer.diskStorage({
   destination: async (_request, _file, callback) => {
     try {
       await ensureStorage("gallery");
-      callback(null, path.join(paths.uploadsRootDir, "gallery"));
+      callback(null, getUploadFolderDir("gallery"));
     } catch (error) {
       callback(error);
     }

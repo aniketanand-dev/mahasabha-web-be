@@ -1,5 +1,7 @@
+const mongoose = require("mongoose");
 const path = require("path");
 const archiver = require("archiver");
+const AcademicYear = require("../models/academic-year.model");
 const ScholarshipApplication = require("../models/scholarship-application.model");
 const Counter = require("../models/counter.model");
 const { MESSAGES, STATUS_CODES } = require("../constants");
@@ -11,6 +13,7 @@ const { readAadhaarOfflineData } = require("../services/aadhaar-offline.service"
 const BOARD_OPTIONS = new Set(["state", "ICSE", "CBSE", "Other"]);
 const STANDARD_OPTIONS = new Set(["10th", "12th"]);
 const GENDER_OPTIONS = new Set(["Male", "Female", "Other"]);
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MEMBER_CATEGORY_OPTIONS = new Set([
   "Life Member",
   "Ashrayadataru",
@@ -30,6 +33,16 @@ const asTrimmedString = (value) => String(value || "").trim();
 const parseNumber = (value) => Number.parseFloat(String(value || "").trim());
 const parseBoolean = (value) => value === true || String(value).toLowerCase() === "true";
 const isValidMarksInput = (value) => /^\d{1,4}$/.test(String(value || "").trim());
+
+const createAcademicYearLabel = (startYear) => `AY-${startYear}-${startYear + 1}`;
+
+const getDefaultAcademicYearLabel = (referenceDate = new Date()) => {
+  const startYear = referenceDate.getMonth() < 5
+    ? referenceDate.getFullYear() - 1
+    : referenceDate.getFullYear();
+
+  return createAcademicYearLabel(startYear);
+};
 
 const buildApplicationNumber = () => {
   const stamp = Date.now().toString().slice(-8);
@@ -54,6 +67,81 @@ const cleanupFiles = async (filePaths = []) => {
 const parsePositiveInt = (value, fallback) => {
   const parsed = Number.parseInt(String(value || ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const ACADEMIC_YEAR_PATTERN = /^AY-\d{4}-\d{4}$/;
+const SCHOLARSHIP_STATUSES = new Set(["pending", "accepted", "rejected"]);
+
+const parseAcademicYearStart = (academicYear) => Number.parseInt(String(academicYear || "").slice(3, 7), 10);
+
+const formatAcademicYear = (academicYear) => ({
+  _id: String(academicYear._id),
+  label: academicYear.label,
+  startYear: academicYear.startYear,
+});
+
+const ensureDefaultAcademicYear = async () => {
+  const label = getDefaultAcademicYearLabel();
+  const startYear = parseAcademicYearStart(label);
+
+  let academicYear = await AcademicYear.findOne({ startYear }).lean();
+  if (academicYear) {
+    return academicYear;
+  }
+
+  academicYear = await AcademicYear.create({ label, startYear });
+  return academicYear.toObject();
+};
+
+const listAcademicYearDocuments = async () => {
+  const ensured = await ensureDefaultAcademicYear();
+  return [ensured];
+};
+
+const resolveAcademicYear = async (academicYearId, { allowDefault = false } = {}) => {
+  const normalizedId = asTrimmedString(academicYearId);
+
+  if (!normalizedId) {
+    if (allowDefault) {
+      return ensureDefaultAcademicYear();
+    }
+
+    throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
+  }
+
+  if (!mongoose.isValidObjectId(normalizedId)) {
+    throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
+  }
+
+  const academicYear = await AcademicYear.findById(normalizedId).lean();
+  if (!academicYear) {
+    throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
+  }
+
+  return academicYear;
+};
+
+const buildAcademicYearFilter = (academicYear) => ({
+  $or: [
+    { academicYearId: academicYear._id },
+    { academicYearId: null, academicYear: academicYear.label },
+  ],
+});
+
+const mergeFilters = (...filters) => {
+  const normalizedFilters = filters.filter((filter) => filter && Object.keys(filter).length > 0);
+
+  if (normalizedFilters.length === 0) {
+    return {};
+  }
+
+  if (normalizedFilters.length === 1) {
+    return normalizedFilters[0];
+  }
+
+  return { $and: normalizedFilters };
 };
 
 const fileEntriesForApplication = (application) => {
@@ -86,15 +174,20 @@ class ScholarshipController {
   };
 
   checkRegistrationAvailability = async (req, res) => {
+    const academicYear = await resolveAcademicYear(req.query.academicYearId);
     const registrationNo = asTrimmedString(req.query.registrationNo);
 
     if (!registrationNo) {
       throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
     }
 
-    const existingApplication = await ScholarshipApplication.findOne({ registrationNo }).select("_id").lean();
+    const existingApplication = await ScholarshipApplication.findOne(
+      mergeFilters(buildAcademicYearFilter(academicYear), { registrationNo })
+    ).select("_id").lean();
 
     return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, {
+      academicYearId: String(academicYear._id),
+      academicYear: academicYear.label,
       registrationNo,
       available: !existingApplication,
       message: existingApplication
@@ -107,8 +200,28 @@ class ScholarshipController {
     const page = parsePositiveInt(req.query.page, 1);
     const limit = Math.min(parsePositiveInt(req.query.limit, 10), 100);
     const fetchAll = String(req.query.all || "").toLowerCase() === "true";
+    const academicYearId = asTrimmedString(req.query.academicYearId);
+    const search = asTrimmedString(req.query.search);
 
-    const baseQuery = ScholarshipApplication.find({}).sort({ submittedAt: -1, _id: -1 });
+    const filters = [];
+    if (academicYearId) {
+      const academicYear = await resolveAcademicYear(academicYearId);
+      filters.push(buildAcademicYearFilter(academicYear));
+    }
+
+    if (search) {
+      const searchPattern = new RegExp(escapeRegex(search), "i");
+      filters.push({
+        $or: [
+        { registrationNo: searchPattern },
+        { aadhaarNumber: searchPattern },
+        ],
+      });
+    }
+
+    const filter = mergeFilters(...filters);
+
+    const baseQuery = ScholarshipApplication.find(filter).sort({ submittedAt: -1, _id: -1 });
 
     if (fetchAll) {
       const items = await baseQuery.lean();
@@ -123,7 +236,7 @@ class ScholarshipController {
       });
     }
 
-    const totalItems = await ScholarshipApplication.countDocuments({});
+    const totalItems = await ScholarshipApplication.countDocuments(filter);
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
     const safePage = totalPages > 0 ? Math.min(page, totalPages) : 1;
 
@@ -143,8 +256,25 @@ class ScholarshipController {
     });
   };
 
-  exportApplicationsZip = async (_req, res) => {
-    const items = await ScholarshipApplication.find({}).sort({ submittedAt: -1, _id: -1 }).lean();
+  listAcademicYears = async (_req, res) => {
+    const years = await listAcademicYearDocuments();
+
+    return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, {
+      items: years.map(formatAcademicYear),
+    });
+  };
+
+  exportApplicationsZip = async (req, res) => {
+    const academicYearId = asTrimmedString(req.query.academicYearId);
+    const filters = [];
+    if (academicYearId) {
+      const academicYear = await resolveAcademicYear(academicYearId);
+      filters.push(buildAcademicYearFilter(academicYear));
+    }
+
+    const filter = mergeFilters(...filters);
+
+    const items = await ScholarshipApplication.find(filter).sort({ submittedAt: -1, _id: -1 }).lean();
 
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
@@ -184,6 +314,39 @@ class ScholarshipController {
     await archive.finalize();
   };
 
+  updateApplicationStatus = async (req, res) => {
+    const applicationId = asTrimmedString(req.params.id);
+    const status = asTrimmedString(req.body.status).toLowerCase();
+    const rejectionComment = asTrimmedString(req.body.rejectionComment);
+
+    if (!applicationId || !SCHOLARSHIP_STATUSES.has(status)) {
+      throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_STATUS, STATUS_CODES.BAD_REQUEST);
+    }
+
+    if (status === "rejected" && !rejectionComment) {
+      throw new AppError(MESSAGES.SCHOLARSHIPS.REJECTION_COMMENT_REQUIRED, STATUS_CODES.BAD_REQUEST);
+    }
+
+    const updated = await ScholarshipApplication.findByIdAndUpdate(
+      applicationId,
+      {
+        status,
+        rejectionComment: status === "rejected" ? rejectionComment : "",
+        reviewedAt: new Date(),
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).lean();
+
+    if (!updated) {
+      throw new AppError(MESSAGES.COMMON.NOT_FOUND, STATUS_CODES.NOT_FOUND);
+    }
+
+    return sendSuccess(res, STATUS_CODES.OK, MESSAGES.SCHOLARSHIPS.STATUS_UPDATED, updated);
+  };
+
   previewAadhaarData = async (req, res) => {
     if (!req.file) {
       throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_AADHAAR_FILE_FORMAT, STATUS_CODES.BAD_REQUEST);
@@ -211,6 +374,7 @@ class ScholarshipController {
       const fatherName = asTrimmedString(req.body.fatherName);
       const motherName = asTrimmedString(req.body.motherName);
       const mobile = asTrimmedString(req.body.mobile);
+      const emailId = asTrimmedString(req.body.emailId).toLowerCase();
       const village = asTrimmedString(req.body.village);
       const taluk = asTrimmedString(req.body.taluk);
       const district = asTrimmedString(req.body.district);
@@ -221,7 +385,7 @@ class ScholarshipController {
       const board = asTrimmedString(req.body.board);
       const otherBoard = asTrimmedString(req.body.otherBoard);
       const standard = asTrimmedString(req.body.standard);
-      const academicYear = asTrimmedString(req.body.academicYear) || "AY-2025-2026";
+      const academicYear = await resolveAcademicYear(req.body.academicYearId, { allowDefault: true });
       const marksObtained = parseNumber(req.body.marksObtained);
       const totalMarks = parseNumber(req.body.totalMarks);
       const percentage = parseNumber(req.body.percentage);
@@ -238,7 +402,7 @@ class ScholarshipController {
       const marksCard = files.marksCard?.[0];
       const aadhaarOfflineFile = files.aadhaarOfflineFile?.[0];
 
-      if (!registrationNo || !firstName || !lastName || !gender || !fatherName || !motherName || !mobile || !aadhaarNumber) {
+      if (!registrationNo || !firstName || !lastName || !gender || !fatherName || !motherName || !mobile || !emailId || !aadhaarNumber) {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
@@ -258,12 +422,20 @@ class ScholarshipController {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
-      const existingRegistrationApplication = await ScholarshipApplication.findOne({ registrationNo }).lean();
+      if (!EMAIL_PATTERN.test(emailId)) {
+        throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
+      }
+
+      const existingRegistrationApplication = await ScholarshipApplication.findOne(
+        mergeFilters(buildAcademicYearFilter(academicYear), { registrationNo })
+      ).lean();
       if (existingRegistrationApplication) {
         throw new AppError(MESSAGES.SCHOLARSHIPS.REGISTRATION_NO_ALREADY_EXISTS, STATUS_CODES.CONFLICT);
       }
 
-      const existingAadhaarApplication = await ScholarshipApplication.findOne({ aadhaarNumber }).lean();
+      const existingAadhaarApplication = await ScholarshipApplication.findOne(
+        mergeFilters(buildAcademicYearFilter(academicYear), { aadhaarNumber })
+      ).lean();
       if (existingAadhaarApplication) {
         throw new AppError(MESSAGES.SCHOLARSHIPS.AADHAAR_ALREADY_EXISTS, STATUS_CODES.CONFLICT);
       }
@@ -326,7 +498,8 @@ class ScholarshipController {
 
       const created = await ScholarshipApplication.create({
         applicationNumber: buildApplicationNumber(),
-        academicYear,
+        academicYearId: academicYear._id,
+        academicYear: academicYear.label,
         serialNumber,
         registrationNo,
         firstName,
@@ -336,6 +509,7 @@ class ScholarshipController {
         fatherName,
         motherName,
         mobile,
+        emailId,
         village,
         taluk,
         district,
@@ -360,6 +534,8 @@ class ScholarshipController {
         aadhaarOfflineFileUrl: aadhaarOfflineFile.managedSrc,
         termsAccepted,
         declarationAccepted,
+        status: "pending",
+        rejectionComment: "",
         submittedAt: new Date()
       });
 

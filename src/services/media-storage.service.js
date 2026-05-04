@@ -22,6 +22,14 @@ const isAllowedFolder = (folder) => {
   return typeof folder === "string" && allowedUploadFolders.has(folder);
 };
 
+const getUploadFolderDir = (folder) => {
+  if (!isAllowedFolder(folder)) {
+    throw new Error("Invalid upload folder.");
+  }
+
+  return path.join(paths.uploadsRootDir, folder);
+};
+
 const createManagedSrc = (folder, fileName) => {
   return `${UPLOAD.ROUTE_PREFIX}/${folder}/${fileName}`;
 };
@@ -32,9 +40,18 @@ const resolveManagedPath = (src) => {
   }
 
   const normalized = path.normalize(src.replace(/^\//, ""));
-  const absolutePath = path.join(paths.frontendRootDir, "public", normalized);
+  const segments = normalized.split(path.sep).filter(Boolean);
+  const folder = segments[1];
 
-  if (!absolutePath.startsWith(paths.uploadsRootDir)) {
+  if (!isAllowedFolder(folder)) {
+    return null;
+  }
+
+  const fileName = segments.slice(2).join(path.sep);
+  const absolutePath = path.join(getUploadFolderDir(folder), fileName);
+  const allowedRoot = path.join(paths.uploadsRootDir, folder);
+
+  if (!absolutePath.startsWith(allowedRoot)) {
     return null;
   }
 
@@ -42,11 +59,7 @@ const resolveManagedPath = (src) => {
 };
 
 const ensureStorage = async (folder) => {
-  if (!isAllowedFolder(folder)) {
-    throw new Error("Invalid upload folder.");
-  }
-
-  await fs.mkdir(path.join(paths.uploadsRootDir, folder), { recursive: true });
+  await fs.mkdir(getUploadFolderDir(folder), { recursive: true });
 };
 
 const ensureAllStorageFolders = async () => {
@@ -92,6 +105,7 @@ module.exports = {
   sanitizeBaseName,
   isManagedUploadPath,
   isAllowedFolder,
+  getUploadFolderDir,
   createManagedSrc,
   resolveManagedPath,
   ensureStorage,

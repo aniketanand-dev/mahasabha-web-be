@@ -4,9 +4,10 @@ const { COLLECTION_NAMES } = require("../constants");
 const scholarshipApplicationSchema = new mongoose.Schema(
   {
     applicationNumber: { type: String, required: true, unique: true, trim: true },
+    academicYearId: { type: mongoose.Schema.Types.ObjectId, ref: "AcademicYear", required: true, index: true },
     academicYear: { type: String, required: true, trim: true },
     serialNumber: { type: Number, required: true, unique: true, min: 1 },
-    registrationNo: { type: String, required: true, trim: true, unique: true },
+    registrationNo: { type: String, required: true, trim: true },
     firstName: { type: String, required: true, trim: true },
     middleName: { type: String, trim: true, default: "" },
     lastName: { type: String, required: true, trim: true },
@@ -14,12 +15,13 @@ const scholarshipApplicationSchema = new mongoose.Schema(
     fatherName: { type: String, required: true, trim: true },
     motherName: { type: String, required: true, trim: true },
     mobile: { type: String, required: true, trim: true },
+    emailId: { type: String, required: true, trim: true, lowercase: true },
     village: { type: String, required: true, trim: true },
     taluk: { type: String, required: true, trim: true },
     district: { type: String, required: true, trim: true },
     state: { type: String, required: true, trim: true },
     pinCode: { type: String, required: true, trim: true },
-    aadhaarNumber: { type: String, required: true, trim: true, unique: true },
+    aadhaarNumber: { type: String, required: true, trim: true },
     aadhaarShareCode: { type: String, required: true, trim: true, uppercase: true },
     board: { type: String, required: true, trim: true },
     otherBoard: { type: String, trim: true, default: "" },
@@ -38,7 +40,9 @@ const scholarshipApplicationSchema = new mongoose.Schema(
     aadhaarOfflineFileUrl: { type: String, required: true, trim: true },
     termsAccepted: { type: Boolean, required: true, default: false },
     declarationAccepted: { type: Boolean, required: true, default: false },
-    status: { type: String, required: true, default: "submitted" },
+    status: { type: String, required: true, trim: true, enum: ["pending", "accepted", "rejected"], default: "pending" },
+    rejectionComment: { type: String, trim: true, default: "" },
+    reviewedAt: { type: Date, default: null },
     submittedAt: { type: Date, required: true, default: Date.now }
   },
   {
@@ -47,5 +51,8 @@ const scholarshipApplicationSchema = new mongoose.Schema(
     versionKey: false
   }
 );
+
+scholarshipApplicationSchema.index({ academicYearId: 1, registrationNo: 1 }, { unique: true });
+scholarshipApplicationSchema.index({ academicYearId: 1, aadhaarNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model("ScholarshipApplication", scholarshipApplicationSchema);

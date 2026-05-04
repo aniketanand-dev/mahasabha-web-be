@@ -23,6 +23,7 @@ const MESSAGES = Object.freeze({
   },
   SCHOLARSHIPS: {
     APPLICATION_SUBMITTED: "Scholarship application submitted successfully",
+    STATUS_UPDATED: "Scholarship application status updated successfully",
     AADHAAR_ALREADY_EXISTS: "An application already exists for this Aadhaar number",
     REGISTRATION_NO_ALREADY_EXISTS: "An application already exists for this registration number",
     INVALID_MARKS: "Marks obtained cannot be greater than total marks",
@@ -32,6 +33,8 @@ const MESSAGES = Object.freeze({
     INVALID_BOARD: "Please select a valid board",
     INVALID_STANDARD: "Please select a valid class",
     INVALID_STATE: "Only Karnataka applications are accepted",
+    INVALID_STATUS: "Please select a valid scholarship status",
+    REJECTION_COMMENT_REQUIRED: "Rejection comment is required when rejecting an application",
     INVALID_REFERRING_MEMBER_CATEGORY: "Please select a valid membership or contribution category",
     REFERRING_MEMBER_DETAILS_REQUIRED: "Please enter the referring member details",
     INVALID_AADHAAR_FILE_FORMAT: "Upload the UIDAI Aadhaar offline ZIP or extracted XML file",

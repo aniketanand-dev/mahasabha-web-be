@@ -4,6 +4,7 @@ const UPLOAD = Object.freeze({
   API_GALLERY_PREFIX: "/api/gallery",
   ALLOWED_FOLDERS: [
     "gallery",
+    "placeholders",
     "navbar",
     "hero",
     "president",
