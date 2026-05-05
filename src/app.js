@@ -9,12 +9,17 @@ const createV1Routes = require("./routes/v1");
 const mediaRoutes = require("./routes/media.routes");
 const notFoundHandler = require("./middleware/not-found.middleware");
 const errorHandler = require("./middleware/error-handler.middleware");
+const { apiRateLimiter } = require("./middleware/rate-limit.middleware");
 const env = require("./config/env");
 const { STATIC_VALUES } = require("./constants");
 const paths = require("./config/paths");
 
 const app = express();
 const { commandBus } = createBuses();
+
+if (env.TRUST_PROXY !== false) {
+  app.set("trust proxy", env.TRUST_PROXY);
+}
 
 app.use(
   helmet({
@@ -23,7 +28,7 @@ app.use(
 );
 app.use(
   cors({
-    origin: env.FRONTEND_URL,
+    origin: true,
     credentials: true
   })
 );
@@ -50,7 +55,7 @@ app.use(
 );
 app.use(mediaRoutes);
 
-app.use(STATIC_VALUES.API_PREFIX, createV1Routes({ commandBus }));
+app.use(STATIC_VALUES.API_PREFIX, apiRateLimiter, createV1Routes({ commandBus }));
 
 app.use(notFoundHandler);
 app.use(errorHandler);

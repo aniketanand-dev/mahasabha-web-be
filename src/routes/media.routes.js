@@ -14,6 +14,7 @@ const {
   writeGallery,
   removeManagedFile
 } = require("../services/media-storage.service");
+const { uploadRateLimiter } = require("../middleware/rate-limit.middleware");
 
 const router = express.Router();
 
@@ -77,7 +78,7 @@ const galleryUpload = multer({
   fileFilter: imageFileFilter
 });
 
-router.post(`${UPLOAD.API_UPLOADS_PREFIX}/:folder`, upload.single("image"), async (request, response, next) => {
+router.post(`${UPLOAD.API_UPLOADS_PREFIX}/:folder`, uploadRateLimiter, upload.single("image"), async (request, response, next) => {
   try {
     const folder = request.params.folder;
 
@@ -116,7 +117,7 @@ router.get(UPLOAD.API_GALLERY_PREFIX, async (_request, response, next) => {
   }
 });
 
-router.post(UPLOAD.API_GALLERY_PREFIX, galleryUpload.single("image"), async (request, response, next) => {
+router.post(UPLOAD.API_GALLERY_PREFIX, uploadRateLimiter, galleryUpload.single("image"), async (request, response, next) => {
   try {
     if (!request.file) {
       response.status(400).json({ message: "Image file is required." });
@@ -138,7 +139,7 @@ router.post(UPLOAD.API_GALLERY_PREFIX, galleryUpload.single("image"), async (req
   }
 });
 
-router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, galleryUpload.single("image"), async (request, response, next) => {
+router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUpload.single("image"), async (request, response, next) => {
   try {
     const itemId = Number(request.params.id);
     const items = await readGallery();

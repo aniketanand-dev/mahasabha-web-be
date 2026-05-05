@@ -4,7 +4,8 @@ const MESSAGES = Object.freeze({
     VALIDATION_ERROR: "Validation error",
     INTERNAL_SERVER_ERROR: "Internal server error",
     NOT_FOUND: "Resource not found",
-    UNAUTHORIZED: "Unauthorized request"
+    UNAUTHORIZED: "Unauthorized request",
+    TOO_MANY_REQUESTS: "Too many requests. Please try again later."
   },
   AUTH: {
     SIGNUP_SUCCESS: "Admin signup successful",
@@ -15,7 +16,8 @@ const MESSAGES = Object.freeze({
     ADMIN_EXISTS: "Admin already exists",
     ADMIN_NOT_FOUND: "Admin not found",
     INVALID_OR_EXPIRED_RESET_TOKEN: "Invalid or expired reset token",
-    TOKEN_REQUIRED: "Reset token is required"
+    TOKEN_REQUIRED: "Reset token is required",
+    TOO_MANY_REQUESTS: "Too many authentication attempts. Please try again later."
   },
   DEFAULT_ADMIN: {
     CREATED: "Default admin created",

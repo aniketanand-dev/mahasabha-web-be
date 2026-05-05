@@ -7,6 +7,7 @@ const AppError = require("../../utils/app-error");
 const { STATUS_CODES } = require("../../constants");
 const { sanitizeBaseName, ensureStorage, getUploadFolderDir, createManagedSrc } = require("../../services/media-storage.service");
 const { requireAdminAuth } = require("../../middleware/auth.middleware");
+const { uploadRateLimiter } = require("../../middleware/rate-limit.middleware");
 
 const router = express.Router();
 const controller = new ScholarshipController();
@@ -84,6 +85,7 @@ const attachManagedFilePaths = (req, _res, next) => {
 
 router.post(
   "/aadhaar/preview",
+  uploadRateLimiter,
   aadhaarPreviewUpload.single("aadhaarOfflineFile"),
   asyncHandler(controller.previewAadhaarData)
 );
@@ -117,6 +119,7 @@ router.get(
 
 router.post(
   "/applications",
+  uploadRateLimiter,
   upload.fields([
     { name: "profilePhoto", maxCount: 1 },
     { name: "casteCertificate", maxCount: 1 },
