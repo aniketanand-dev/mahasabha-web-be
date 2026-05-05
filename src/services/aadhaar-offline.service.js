@@ -3,10 +3,20 @@ const os = require("os");
 const path = require("path");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
+const { path7za } = require("7zip-bin");
 const { MESSAGES, STATUS_CODES } = require("../constants");
 const AppError = require("../utils/app-error");
 
 const execFileAsync = promisify(execFile);
+const ZIP_PASSWORD_ERROR_PATTERN = /wrong password|can not open encrypted archive|data error in encrypted file/i;
+const ZIP_INVALID_ARCHIVE_PATTERN = /can not open the file as archive|is not archive|unexpected end of archive|headers error/i;
+
+const normalizeExecOutput = (error) => {
+  return [error?.stdout, error?.stderr, error?.message]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+};
 
 const decodeXmlEntities = (value) => {
   return String(value || "")
@@ -137,7 +147,7 @@ const extractXmlContent = async (fileBuffer, originalName, shareCode) => {
     await fs.mkdir(extractPath, { recursive: true });
     await fs.writeFile(archivePath, fileBuffer);
 
-    await execFileAsync("7z", ["x", archivePath, `-p${shareCode}`, `-o${extractPath}`, "-y"]);
+    await execFileAsync(path7za, ["x", archivePath, `-p${shareCode}`, `-o${extractPath}`, "-y"]);
 
     const xmlFilePath = await findFirstXmlFile(extractPath);
 
@@ -149,6 +159,20 @@ const extractXmlContent = async (fileBuffer, originalName, shareCode) => {
   } catch (error) {
     if (error instanceof AppError) {
       throw error;
+    }
+
+    if (error?.code === "ENOENT") {
+      throw new AppError(MESSAGES.SCHOLARSHIPS.AADHAAR_EXTRACTOR_UNAVAILABLE, STATUS_CODES.INTERNAL_SERVER_ERROR);
+    }
+
+    const execOutput = normalizeExecOutput(error);
+
+    if (ZIP_PASSWORD_ERROR_PATTERN.test(execOutput)) {
+      throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_AADHAAR_ZIP_OR_SHARE_CODE, STATUS_CODES.BAD_REQUEST);
+    }
+
+    if (ZIP_INVALID_ARCHIVE_PATTERN.test(execOutput)) {
+      throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_AADHAAR_FILE_FORMAT, STATUS_CODES.BAD_REQUEST);
     }
 
     throw new AppError(MESSAGES.SCHOLARSHIPS.AADHAAR_PARSE_FAILED, STATUS_CODES.BAD_REQUEST);
