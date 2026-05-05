@@ -51,8 +51,8 @@ Gallery items are stored in a JSON file used by the media routes.
 For production, prefer serving the Angular frontend and backend through the same Nginx domain.
 
 - Frontend: static Angular build
-- API: proxy `/api/` to `http://127.0.0.1:5000`
-- Uploads: proxy `/uploads/` to `http://127.0.0.1:5000`
+- API: proxy `/api/` to `http://localhost:5000`
+- Uploads: proxy `/uploads/` to `http://localhost:5000`
 
 That keeps API calls and uploaded images same-origin, so browsers do not require cross-origin access for normal site usage.
 
