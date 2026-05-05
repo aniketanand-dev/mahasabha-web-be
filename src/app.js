@@ -16,7 +16,11 @@ const paths = require("./config/paths");
 const app = express();
 const { commandBus } = createBuses();
 
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false
+  })
+);
 app.use(
   cors({
     origin: env.FRONTEND_URL,
@@ -32,7 +36,18 @@ app.get("/health", (req, res) => {
   return res.status(200).json({ status: "ok" });
 });
 
-app.use("/uploads", express.static(paths.uploadsRootDir));
+app.use(
+  "/uploads",
+  (_request, response, next) => {
+    response.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(paths.uploadsRootDir, {
+    setHeaders: (response) => {
+      response.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    }
+  })
+);
 app.use(mediaRoutes);
 
 app.use(STATIC_VALUES.API_PREFIX, createV1Routes({ commandBus }));
