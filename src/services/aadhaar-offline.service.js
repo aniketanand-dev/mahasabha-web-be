@@ -6,10 +6,11 @@ const { promisify } = require("util");
 const { path7za } = require("7zip-bin");
 const { MESSAGES, STATUS_CODES } = require("../constants");
 const AppError = require("../utils/app-error");
+const logger = require("../utils/logger");
 
 const execFileAsync = promisify(execFile);
-const ZIP_PASSWORD_ERROR_PATTERN = /wrong password|can not open encrypted archive|data error in encrypted file/i;
-const ZIP_INVALID_ARCHIVE_PATTERN = /can not open the file as archive|is not archive|unexpected end of archive|headers error/i;
+const ZIP_PASSWORD_ERROR_PATTERN = /wrong password|can not open encrypted archive|data error in encrypted file|crc failed in encrypted file|sub items errors/i;
+const ZIP_INVALID_ARCHIVE_PATTERN = /can not open the file as archive|can not open file as archive|is not archive|unexpected end of archive|headers error|open errors/i;
 
 const normalizeExecOutput = (error) => {
   return [error?.stdout, error?.stderr, error?.message]
@@ -161,11 +162,15 @@ const extractXmlContent = async (fileBuffer, originalName, shareCode) => {
       throw error;
     }
 
+    const execOutput = normalizeExecOutput(error);
+    logger.error("Aadhaar ZIP extraction failed", {
+      originalName,
+      output: execOutput || "<no output>",
+    });
+
     if (error?.code === "ENOENT") {
       throw new AppError(MESSAGES.SCHOLARSHIPS.AADHAAR_EXTRACTOR_UNAVAILABLE, STATUS_CODES.INTERNAL_SERVER_ERROR);
     }
-
-    const execOutput = normalizeExecOutput(error);
 
     if (ZIP_PASSWORD_ERROR_PATTERN.test(execOutput)) {
       throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_AADHAAR_ZIP_OR_SHARE_CODE, STATUS_CODES.BAD_REQUEST);
