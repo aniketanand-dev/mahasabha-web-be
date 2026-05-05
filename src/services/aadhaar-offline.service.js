@@ -11,6 +11,18 @@ const logger = require("../utils/logger");
 const execFileAsync = promisify(execFile);
 const ZIP_PASSWORD_ERROR_PATTERN = /wrong password|can not open encrypted archive|data error in encrypted file|crc failed in encrypted file|sub items errors/i;
 const ZIP_INVALID_ARCHIVE_PATTERN = /can not open the file as archive|can not open file as archive|is not archive|unexpected end of archive|headers error|open errors/i;
+let extractorPermissionPromise;
+
+const ensureExtractorExecutable = async () => {
+  if (!extractorPermissionPromise) {
+    extractorPermissionPromise = fs.chmod(path7za, 0o755).catch((error) => {
+      extractorPermissionPromise = null;
+      throw error;
+    });
+  }
+
+  return extractorPermissionPromise;
+};
 
 const normalizeExecOutput = (error) => {
   return [error?.stdout, error?.stderr, error?.message]
@@ -147,6 +159,7 @@ const extractXmlContent = async (fileBuffer, originalName, shareCode) => {
 
     await fs.mkdir(extractPath, { recursive: true });
     await fs.writeFile(archivePath, fileBuffer);
+    await ensureExtractorExecutable();
 
     await execFileAsync(path7za, ["x", archivePath, `-p${shareCode}`, `-o${extractPath}`, "-y"]);
 
@@ -168,7 +181,7 @@ const extractXmlContent = async (fileBuffer, originalName, shareCode) => {
       output: execOutput || "<no output>",
     });
 
-    if (error?.code === "ENOENT") {
+    if (error?.code === "ENOENT" || error?.code === "EACCES") {
       throw new AppError(MESSAGES.SCHOLARSHIPS.AADHAAR_EXTRACTOR_UNAVAILABLE, STATUS_CODES.INTERNAL_SERVER_ERROR);
     }
 
