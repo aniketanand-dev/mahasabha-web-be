@@ -32,6 +32,14 @@ npm run dev
 npm start
 ```
 
+## Gallery Upload Metadata
+
+Gallery items are stored in a JSON file used by the media routes.
+
+- If the frontend workspace exists beside the backend, the backend uses `Veerashiva_Mahasabha/data/gallery.json`.
+- Otherwise it falls back to `mahasabha-backend/data/gallery.json`.
+- You can override the location explicitly with `GALLERY_DATA_FILE=/absolute/path/to/gallery.json`.
+
 ## API Base URL
 
 `/api/v1`

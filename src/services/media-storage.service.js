@@ -81,6 +81,7 @@ const readGallery = async () => {
 };
 
 const writeGallery = async (items) => {
+  await fs.mkdir(path.dirname(paths.galleryDataFile), { recursive: true });
   await fs.writeFile(paths.galleryDataFile, `${JSON.stringify(items, null, 2)}\n`, "utf8");
 };
 

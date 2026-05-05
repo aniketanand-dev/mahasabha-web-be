@@ -201,6 +201,7 @@ class ScholarshipController {
     const limit = Math.min(parsePositiveInt(req.query.limit, 10), 100);
     const fetchAll = String(req.query.all || "").toLowerCase() === "true";
     const academicYearId = asTrimmedString(req.query.academicYearId);
+    const status = asTrimmedString(req.query.status).toLowerCase();
     const search = asTrimmedString(req.query.search);
 
     const filters = [];
@@ -209,12 +210,28 @@ class ScholarshipController {
       filters.push(buildAcademicYearFilter(academicYear));
     }
 
+    if (status) {
+      if (!SCHOLARSHIP_STATUSES.has(status)) {
+        throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_STATUS, STATUS_CODES.BAD_REQUEST);
+      }
+
+      filters.push({ status });
+    }
+
     if (search) {
       const searchPattern = new RegExp(escapeRegex(search), "i");
       filters.push({
         $or: [
+        { applicationNumber: searchPattern },
         { registrationNo: searchPattern },
         { aadhaarNumber: searchPattern },
+        { firstName: searchPattern },
+        { middleName: searchPattern },
+        { lastName: searchPattern },
+        { mobile: searchPattern },
+        { emailId: searchPattern },
+        { fatherName: searchPattern },
+        { motherName: searchPattern },
         ],
       });
     }
