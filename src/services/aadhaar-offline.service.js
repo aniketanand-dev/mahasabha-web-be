@@ -110,6 +110,10 @@ const findFirstXmlFile = async (directoryPath) => {
 };
 
 const extractXmlContent = async (fileBuffer, originalName, shareCode) => {
+  if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+    throw new AppError(MESSAGES.SCHOLARSHIPS.EMPTY_AADHAAR_FILE, STATUS_CODES.BAD_REQUEST);
+  }
+
   const extension = path.extname(String(originalName || "")).toLowerCase();
 
   if (extension === ".xml") {

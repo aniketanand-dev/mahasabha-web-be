@@ -5,4 +5,8 @@ const connectDatabase = async () => {
   await mongoose.connect(env.MONGODB_URL);
 };
 
-module.exports = { connectDatabase };
+const disconnectDatabase = async () => {
+  await mongoose.disconnect();
+};
+
+module.exports = { connectDatabase, disconnectDatabase };

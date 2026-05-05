@@ -369,6 +369,10 @@ class ScholarshipController {
       throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_AADHAAR_FILE_FORMAT, STATUS_CODES.BAD_REQUEST);
     }
 
+    if (!req.file.buffer || req.file.buffer.length === 0) {
+      throw new AppError(MESSAGES.SCHOLARSHIPS.EMPTY_AADHAAR_FILE, STATUS_CODES.BAD_REQUEST);
+    }
+
     const aadhaarShareCode = asTrimmedString(req.body.aadhaarShareCode);
     const parsedData = await readAadhaarOfflineData({
       fileBuffer: req.file.buffer,

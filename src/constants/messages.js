@@ -40,6 +40,7 @@ const MESSAGES = Object.freeze({
     INVALID_REFERRING_MEMBER_CATEGORY: "Please select a valid membership or contribution category",
     REFERRING_MEMBER_DETAILS_REQUIRED: "Please enter the referring member details",
     INVALID_AADHAAR_FILE_FORMAT: "Upload the UIDAI Aadhaar offline ZIP or extracted XML file",
+    EMPTY_AADHAAR_FILE: "The Aadhaar offline file is empty. Upload the original ZIP or XML file again.",
     AADHAAR_PARSE_FAILED: "Unable to read the Aadhaar offline file. Please verify the share code and try again"
   }
 });
