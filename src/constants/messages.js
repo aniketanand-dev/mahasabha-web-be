@@ -31,19 +31,12 @@ const MESSAGES = Object.freeze({
     INVALID_MARKS: "Marks obtained cannot be greater than total marks",
     INVALID_MARKS_FORMAT: "Marks must contain only digits and be up to 4 digits",
     REQUIRED_FILES: "All required documents must be uploaded",
-    INVALID_AADHAAR_SHARE_CODE: "Please enter a valid Aadhaar share code",
     INVALID_BOARD: "Please select a valid board",
     INVALID_STANDARD: "Please select a valid class",
-    INVALID_STATE: "Only Karnataka applications are accepted",
     INVALID_STATUS: "Please select a valid scholarship status",
     REJECTION_COMMENT_REQUIRED: "Rejection comment is required when rejecting an application",
     INVALID_REFERRING_MEMBER_CATEGORY: "Please select a valid membership or contribution category",
-    REFERRING_MEMBER_DETAILS_REQUIRED: "Please enter the referring member details",
-    INVALID_AADHAAR_FILE_FORMAT: "Upload the UIDAI Aadhaar offline ZIP or extracted XML file",
-    EMPTY_AADHAAR_FILE: "The Aadhaar offline file is empty. Upload the original ZIP or XML file again.",
-    AADHAAR_EXTRACTOR_UNAVAILABLE: "The server could not open Aadhaar ZIP files. Contact support or upload the extracted XML file instead.",
-    INVALID_AADHAAR_ZIP_OR_SHARE_CODE: "Unable to unlock the Aadhaar offline ZIP. Check the share code and upload the original UIDAI ZIP file.",
-    AADHAAR_PARSE_FAILED: "Unable to read the Aadhaar offline file. Please verify the share code and try again"
+    REFERRING_MEMBER_DETAILS_REQUIRED: "Please enter the referring member details"
   }
 });
 

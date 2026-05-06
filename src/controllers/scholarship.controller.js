@@ -8,24 +8,28 @@ const { MESSAGES, STATUS_CODES } = require("../constants");
 const { sendSuccess } = require("../utils/api-response");
 const AppError = require("../utils/app-error");
 const { removeManagedFile, resolveManagedPath, sanitizeBaseName } = require("../services/media-storage.service");
-const { readAadhaarOfflineData } = require("../services/aadhaar-offline.service");
 
 const BOARD_OPTIONS = new Set(["state", "ICSE", "CBSE", "Other"]);
 const STANDARD_OPTIONS = new Set(["10th", "12th"]);
 const GENDER_OPTIONS = new Set(["Male", "Female", "Other"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_IMAGE_UPLOAD_BYTES = 200 * 1024;
+const MAX_IMAGE_UPLOAD_BYTES = 1024 * 1024;
+const IMAGE_UPLOAD_REQUIREMENTS_MESSAGE = "Upload an image between 200 KB and 1 MB with resolution from 1200 x 900 px to 1600 x 1200 px. If scanned, use 150-300 DPI so the text stays readable.";
 const MEMBER_CATEGORY_OPTIONS = new Set([
   "Life Member",
   "Ashrayadataru",
   "Upaposhakaru",
   "Sahaposhakaru",
-  "District Committee Member",
+  "Institutional Member",
+  "Poshakaru",
+  "Mahaposhakaru",
+  "Danigalu",
   "Mahadanigalu",
   "Danashiromanigalu",
   "Dasohigalu",
   "Mahadasohigalu",
-  "Paramadasohigalu",
-  "Institutional Member"
+  "Paramadasohigalu"
 ]);
 const SCHOLARSHIP_COUNTER_ID = "scholarshipApplications";
 
@@ -144,13 +148,22 @@ const mergeFilters = (...filters) => {
   return { $and: normalizedFilters };
 };
 
+const validateScholarshipImageSize = (file) => {
+  const fileSize = Number(file?.size || 0);
+
+  if (!Number.isFinite(fileSize) || fileSize < MIN_IMAGE_UPLOAD_BYTES || fileSize > MAX_IMAGE_UPLOAD_BYTES) {
+    throw new AppError(IMAGE_UPLOAD_REQUIREMENTS_MESSAGE, STATUS_CODES.BAD_REQUEST);
+  }
+};
+
 const fileEntriesForApplication = (application) => {
   return [
     { label: "profile-photo", src: application.profilePhotoUrl },
     { label: "caste-certificate", src: application.casteCertificateUrl },
     { label: "marks-card", src: application.marksCardUrl },
+    { label: "aadhaar-card", src: application.aadhaarCardUrl },
     { label: "aadhaar-offline", src: application.aadhaarOfflineFileUrl }
-  ];
+  ].filter((entry) => !!entry.src);
 };
 
 const buildArchiveBaseName = (application) => {
@@ -203,6 +216,9 @@ class ScholarshipController {
     const academicYearId = asTrimmedString(req.query.academicYearId);
     const status = asTrimmedString(req.query.status).toLowerCase();
     const search = asTrimmedString(req.query.search);
+    const state = asTrimmedString(req.query.state);
+    const district = asTrimmedString(req.query.district);
+    const taluk = asTrimmedString(req.query.taluk);
 
     const filters = [];
     if (academicYearId) {
@@ -234,6 +250,18 @@ class ScholarshipController {
         { motherName: searchPattern },
         ],
       });
+    }
+
+    if (state) {
+      filters.push({ state: new RegExp(`^${escapeRegex(state)}$`, "i") });
+    }
+
+    if (district) {
+      filters.push({ district: new RegExp(`^${escapeRegex(district)}$`, "i") });
+    }
+
+    if (taluk) {
+      filters.push({ taluk: new RegExp(`^${escapeRegex(taluk)}$`, "i") });
     }
 
     const filter = mergeFilters(...filters);
@@ -364,25 +392,6 @@ class ScholarshipController {
     return sendSuccess(res, STATUS_CODES.OK, MESSAGES.SCHOLARSHIPS.STATUS_UPDATED, updated);
   };
 
-  previewAadhaarData = async (req, res) => {
-    if (!req.file) {
-      throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_AADHAAR_FILE_FORMAT, STATUS_CODES.BAD_REQUEST);
-    }
-
-    if (!req.file.buffer || req.file.buffer.length === 0) {
-      throw new AppError(MESSAGES.SCHOLARSHIPS.EMPTY_AADHAAR_FILE, STATUS_CODES.BAD_REQUEST);
-    }
-
-    const aadhaarShareCode = asTrimmedString(req.body.aadhaarShareCode);
-    const parsedData = await readAadhaarOfflineData({
-      fileBuffer: req.file.buffer,
-      originalName: req.file.originalname,
-      shareCode: aadhaarShareCode
-    });
-
-    return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, parsedData);
-  };
-
   submitApplication = async (req, res) => {
     const uploadedFiles = req.uploadedFiles || [];
 
@@ -402,7 +411,6 @@ class ScholarshipController {
       const state = asTrimmedString(req.body.state);
       const pinCode = asTrimmedString(req.body.pinCode);
       const aadhaarNumber = asTrimmedString(req.body.aadhaarNumber);
-      const aadhaarShareCode = asTrimmedString(req.body.aadhaarShareCode);
       const board = asTrimmedString(req.body.board);
       const otherBoard = asTrimmedString(req.body.otherBoard);
       const standard = asTrimmedString(req.body.standard);
@@ -421,7 +429,7 @@ class ScholarshipController {
       const profilePhoto = files.profilePhoto?.[0];
       const casteCertificate = files.casteCertificate?.[0];
       const marksCard = files.marksCard?.[0];
-      const aadhaarOfflineFile = files.aadhaarOfflineFile?.[0];
+      const aadhaarCard = files.aadhaarCard?.[0];
 
       if (!registrationNo || !firstName || !lastName || !gender || !fatherName || !motherName || !mobile || !emailId || !aadhaarNumber) {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
@@ -429,10 +437,6 @@ class ScholarshipController {
 
       if (!village || !taluk || !district || !state || !pinCode) {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
-      }
-
-      if (state !== "Karnataka") {
-        throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_STATE, STATUS_CODES.BAD_REQUEST);
       }
 
       if (!GENDER_OPTIONS.has(gender)) {
@@ -473,10 +477,6 @@ class ScholarshipController {
         throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_STANDARD, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!aadhaarShareCode || !/^\S{4,32}$/.test(aadhaarShareCode)) {
-        throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_AADHAAR_SHARE_CODE, STATUS_CODES.BAD_REQUEST);
-      }
-
       if (!isValidMarksInput(req.body.marksObtained) || !isValidMarksInput(req.body.totalMarks)) {
         throw new AppError(MESSAGES.SCHOLARSHIPS.INVALID_MARKS_FORMAT, STATUS_CODES.BAD_REQUEST);
       }
@@ -497,9 +497,11 @@ class ScholarshipController {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!profilePhoto || !casteCertificate || !marksCard || !aadhaarOfflineFile) {
+      if (!profilePhoto || !casteCertificate || !marksCard || !aadhaarCard) {
         throw new AppError(MESSAGES.SCHOLARSHIPS.REQUIRED_FILES, STATUS_CODES.BAD_REQUEST);
       }
+
+      [profilePhoto, casteCertificate, marksCard, aadhaarCard].forEach(validateScholarshipImageSize);
 
       if (heardFromMember) {
         if (!MEMBER_CATEGORY_OPTIONS.has(referringMemberCategory)) {
@@ -537,7 +539,7 @@ class ScholarshipController {
         state,
         pinCode,
         aadhaarNumber,
-        aadhaarShareCode,
+        aadhaarShareCode: "",
         board,
         otherBoard,
         standard,
@@ -552,7 +554,8 @@ class ScholarshipController {
         profilePhotoUrl: profilePhoto.managedSrc,
         casteCertificateUrl: casteCertificate.managedSrc,
         marksCardUrl: marksCard.managedSrc,
-        aadhaarOfflineFileUrl: aadhaarOfflineFile.managedSrc,
+        aadhaarCardUrl: aadhaarCard.managedSrc,
+        aadhaarOfflineFileUrl: "",
         termsAccepted,
         declarationAccepted,
         status: "pending",

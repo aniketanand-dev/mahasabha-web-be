@@ -11,6 +11,7 @@ const { uploadRateLimiter } = require("../../middleware/rate-limit.middleware");
 
 const router = express.Router();
 const controller = new ScholarshipController();
+const MAX_IMAGE_UPLOAD_BYTES = 1024 * 1024;
 
 const storage = multer.diskStorage({
   destination: async (_request, _file, callback) => {
@@ -34,36 +35,18 @@ const storage = multer.diskStorage({
 });
 
 const imageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg"]);
-const aadhaarMimeTypes = new Set([
-  "application/zip",
-  "application/x-zip-compressed",
-  "application/octet-stream",
-  "text/xml",
-  "application/xml"
-]);
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: MAX_IMAGE_UPLOAD_BYTES },
   fileFilter: (_request, file, callback) => {
-    const isAadhaarField = file.fieldname === "aadhaarOfflineFile";
-    const isValidType = isAadhaarField ? aadhaarMimeTypes.has(file.mimetype) : imageMimeTypes.has(file.mimetype);
+    const isValidType = imageMimeTypes.has(file.mimetype);
 
     if (!isValidType) {
-      callback(new AppError("Invalid file format uploaded.", STATUS_CODES.BAD_REQUEST));
-      return;
-    }
-
-    callback(null, true);
-  }
-});
-
-const aadhaarPreviewUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_request, file, callback) => {
-    if (!aadhaarMimeTypes.has(file.mimetype)) {
-      callback(new AppError("Invalid file format uploaded.", STATUS_CODES.BAD_REQUEST));
+      callback(new AppError(
+        "Invalid file format uploaded. Profile photo, caste certificate, marks card, and Aadhaar copy must be image files in JPG, PNG, or WEBP format.",
+        STATUS_CODES.BAD_REQUEST
+      ));
       return;
     }
 
@@ -82,13 +65,6 @@ const attachManagedFilePaths = (req, _res, next) => {
 
   next();
 };
-
-router.post(
-  "/aadhaar/preview",
-  uploadRateLimiter,
-  aadhaarPreviewUpload.single("aadhaarOfflineFile"),
-  asyncHandler(controller.previewAadhaarData)
-);
 
 router.get(
   "/summary",
@@ -124,7 +100,7 @@ router.post(
     { name: "profilePhoto", maxCount: 1 },
     { name: "casteCertificate", maxCount: 1 },
     { name: "marksCard", maxCount: 1 },
-    { name: "aadhaarOfflineFile", maxCount: 1 }
+    { name: "aadhaarCard", maxCount: 1 }
   ]),
   attachManagedFilePaths,
   asyncHandler(controller.submitApplication)
