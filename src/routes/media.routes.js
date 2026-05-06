@@ -2,7 +2,7 @@ const express = require("express");
 const fs = require("fs/promises");
 const multer = require("multer");
 const path = require("path");
-const paths = require("../config/paths");
+const GalleryItem = require("../models/gallery-item.model");
 const { UPLOAD } = require("../constants");
 const {
   sanitizeBaseName,
@@ -10,8 +10,6 @@ const {
   getUploadFolderDir,
   createManagedSrc,
   ensureStorage,
-  readGallery,
-  writeGallery,
   removeManagedFile
 } = require("../services/media-storage.service");
 const { uploadRateLimiter } = require("../middleware/rate-limit.middleware");
@@ -111,7 +109,8 @@ router.delete(UPLOAD.API_UPLOADS_PREFIX, async (request, response, next) => {
 
 router.get(UPLOAD.API_GALLERY_PREFIX, async (_request, response, next) => {
   try {
-    response.json(await readGallery());
+    const items = await GalleryItem.find({}).sort({ createdAt: 1, _id: 1 }).lean();
+    response.json(items.map((item) => ({ id: item.id, src: item.src, caption: item.caption })));
   } catch (error) {
     next(error);
   }
@@ -124,15 +123,13 @@ router.post(UPLOAD.API_GALLERY_PREFIX, uploadRateLimiter, galleryUpload.single("
       return;
     }
 
-    const items = await readGallery();
     const created = {
       id: Date.now(),
       src: createManagedSrc("gallery", request.file.filename),
       caption: String(request.body.caption || "").trim()
     };
 
-    items.push(created);
-    await writeGallery(items);
+    await GalleryItem.create(created);
     response.status(201).json(created);
   } catch (error) {
     next(error);
@@ -142,10 +139,9 @@ router.post(UPLOAD.API_GALLERY_PREFIX, uploadRateLimiter, galleryUpload.single("
 router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUpload.single("image"), async (request, response, next) => {
   try {
     const itemId = Number(request.params.id);
-    const items = await readGallery();
-    const itemIndex = items.findIndex((item) => item.id === itemId);
+    const existingItem = await GalleryItem.findOne({ id: itemId }).lean();
 
-    if (itemIndex === -1) {
+    if (!existingItem) {
       if (request.file) {
         await fs.unlink(request.file.path);
       }
@@ -154,7 +150,6 @@ router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUploa
       return;
     }
 
-    const existingItem = items[itemIndex];
     const nextItem = {
       ...existingItem,
       caption: request.body.caption !== undefined ? String(request.body.caption).trim() : existingItem.caption
@@ -165,8 +160,7 @@ router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUploa
       nextItem.src = createManagedSrc("gallery", request.file.filename);
     }
 
-    items[itemIndex] = nextItem;
-    await writeGallery(items);
+    await GalleryItem.updateOne({ id: itemId }, { $set: { src: nextItem.src, caption: nextItem.caption } });
     response.json(nextItem);
   } catch (error) {
     next(error);
@@ -176,8 +170,7 @@ router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUploa
 router.delete(`${UPLOAD.API_GALLERY_PREFIX}/:id`, async (request, response, next) => {
   try {
     const itemId = Number(request.params.id);
-    const items = await readGallery();
-    const existingItem = items.find((item) => item.id === itemId);
+    const existingItem = await GalleryItem.findOne({ id: itemId }).lean();
 
     if (!existingItem) {
       response.status(404).json({ message: "Gallery item not found." });
@@ -185,7 +178,7 @@ router.delete(`${UPLOAD.API_GALLERY_PREFIX}/:id`, async (request, response, next
     }
 
     await removeManagedFile(existingItem.src);
-    await writeGallery(items.filter((item) => item.id !== itemId));
+    await GalleryItem.deleteOne({ id: itemId });
     response.status(204).send();
   } catch (error) {
     next(error);
