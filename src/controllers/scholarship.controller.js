@@ -13,9 +13,8 @@ const BOARD_OPTIONS = new Set(["state", "ICSE", "CBSE", "Other"]);
 const STANDARD_OPTIONS = new Set(["10th", "12th"]);
 const GENDER_OPTIONS = new Set(["Male", "Female", "Other"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_IMAGE_UPLOAD_BYTES = 200 * 1024;
 const MAX_IMAGE_UPLOAD_BYTES = 1024 * 1024;
-const IMAGE_UPLOAD_REQUIREMENTS_MESSAGE = "Upload an image between 200 KB and 1 MB with resolution from 1200 x 900 px to 1600 x 1200 px. If scanned, use 150-300 DPI so the text stays readable.";
+const IMAGE_UPLOAD_REQUIREMENTS_MESSAGE = "Upload an image file up to 1 MB.";
 const MEMBER_CATEGORY_OPTIONS = new Set([
   "Life Member",
   "Ashrayadataru",
@@ -151,7 +150,7 @@ const mergeFilters = (...filters) => {
 const validateScholarshipImageSize = (file) => {
   const fileSize = Number(file?.size || 0);
 
-  if (!Number.isFinite(fileSize) || fileSize < MIN_IMAGE_UPLOAD_BYTES || fileSize > MAX_IMAGE_UPLOAD_BYTES) {
+  if (!Number.isFinite(fileSize) || fileSize > MAX_IMAGE_UPLOAD_BYTES) {
     throw new AppError(IMAGE_UPLOAD_REQUIREMENTS_MESSAGE, STATUS_CODES.BAD_REQUEST);
   }
 };
