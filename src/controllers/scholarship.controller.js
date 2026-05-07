@@ -72,6 +72,32 @@ const parsePositiveInt = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const parseDateOnly = (value, { endExclusive = false } = {}) => {
+  const normalized = asTrimmedString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
+  }
+
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const date = endExclusive
+    ? new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0))
+    : new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+  if (Number.isNaN(date.getTime())) {
+    throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
+  }
+
+  return date;
+};
+
 const escapeRegex = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const ACADEMIC_YEAR_PATTERN = /^AY-\d{4}-\d{4}$/;
@@ -218,6 +244,8 @@ class ScholarshipController {
     const state = asTrimmedString(req.query.state);
     const district = asTrimmedString(req.query.district);
     const taluk = asTrimmedString(req.query.taluk);
+    const submittedFrom = parseDateOnly(req.query.submittedFrom);
+    const submittedTo = parseDateOnly(req.query.submittedTo, { endExclusive: true });
 
     const filters = [];
     if (academicYearId) {
@@ -261,6 +289,20 @@ class ScholarshipController {
 
     if (taluk) {
       filters.push({ taluk: new RegExp(`^${escapeRegex(taluk)}$`, "i") });
+    }
+
+    if (submittedFrom || submittedTo) {
+      const submittedAtFilter = {};
+
+      if (submittedFrom) {
+        submittedAtFilter.$gte = submittedFrom;
+      }
+
+      if (submittedTo) {
+        submittedAtFilter.$lt = submittedTo;
+      }
+
+      filters.push({ submittedAt: submittedAtFilter });
     }
 
     const filter = mergeFilters(...filters);
