@@ -4,6 +4,7 @@ const archiver = require("archiver");
 const AcademicYear = require("../models/academic-year.model");
 const ScholarshipApplication = require("../models/scholarship-application.model");
 const Counter = require("../models/counter.model");
+const SECTION_CONTENT_MODELS = require("../models/section-content.models");
 const { MESSAGES, STATUS_CODES } = require("../constants");
 const { sendSuccess } = require("../utils/api-response");
 const AppError = require("../utils/app-error");
@@ -31,6 +32,13 @@ const MEMBER_CATEGORY_OPTIONS = new Set([
   "Paramadasohigalu"
 ]);
 const SCHOLARSHIP_COUNTER_ID = "scholarshipApplications";
+const SCHOLARSHIP_SETTINGS_MODEL = SECTION_CONTENT_MODELS.adm_scholarship_settings;
+const SCHOLARSHIP_SETTINGS_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const DEFAULT_SCHOLARSHIP_SETTINGS = Object.freeze({
+  applicationDeadline: "",
+  closedTitle: "Scholarship Applications Closed",
+  closedMessage: "The scholarship application period has ended. Please check back for the next cycle.",
+});
 
 const asTrimmedString = (value) => String(value || "").trim();
 const parseNumber = (value) => Number.parseFloat(String(value || "").trim());
@@ -202,7 +210,43 @@ const buildArchiveBaseName = (application) => {
   return `${fullName}-${aadhaarNumber}`;
 };
 
+const normalizeScholarshipSettings = (value) => {
+  const next = value && typeof value === "object" ? value : {};
+  const applicationDeadline = SCHOLARSHIP_SETTINGS_DATETIME_PATTERN.test(String(next.applicationDeadline || "").trim())
+    ? String(next.applicationDeadline).trim()
+    : "";
+
+  return {
+    applicationDeadline,
+    closedTitle: asTrimmedString(next.closedTitle) || DEFAULT_SCHOLARSHIP_SETTINGS.closedTitle,
+    closedMessage: asTrimmedString(next.closedMessage) || DEFAULT_SCHOLARSHIP_SETTINGS.closedMessage,
+  };
+};
+
+const readScholarshipSettings = async () => {
+  const row = await SCHOLARSHIP_SETTINGS_MODEL.findOne({}).lean();
+  return normalizeScholarshipSettings(row?.value);
+};
+
+const buildScholarshipPortalState = (settings, referenceDate = new Date()) => {
+  const normalized = normalizeScholarshipSettings(settings);
+  const deadlineCutoff = normalized.applicationDeadline
+    ? new Date(normalized.applicationDeadline)
+    : null;
+
+  return {
+    ...normalized,
+    isOpen: !deadlineCutoff || Number.isNaN(deadlineCutoff.getTime()) || referenceDate < deadlineCutoff,
+  };
+};
+
 class ScholarshipController {
+  getPortalSettings = async (_req, res) => {
+    const settings = await readScholarshipSettings();
+
+    return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, buildScholarshipPortalState(settings));
+  };
+
   getPublicSummary = async (_req, res) => {
     const totalApplications = await ScholarshipApplication.countDocuments({});
 
@@ -437,6 +481,12 @@ class ScholarshipController {
     const uploadedFiles = req.uploadedFiles || [];
 
     try {
+      const portalSettings = buildScholarshipPortalState(await readScholarshipSettings());
+
+      if (!portalSettings.isOpen) {
+        throw new AppError(MESSAGES.SCHOLARSHIPS.APPLICATIONS_CLOSED, STATUS_CODES.FORBIDDEN);
+      }
+
       const firstName = asTrimmedString(req.body.firstName);
       const middleName = asTrimmedString(req.body.middleName);
       const lastName = asTrimmedString(req.body.lastName);

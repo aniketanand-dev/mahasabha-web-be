@@ -14,6 +14,12 @@ const galleryItemSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    mediaType: {
+      type: String,
+      enum: ["image", "video"],
+      default: "image",
+      trim: true,
+    },
     caption: {
       type: String,
       default: "",

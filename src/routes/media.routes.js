@@ -55,7 +55,19 @@ const galleryStorage = multer.diskStorage({
   }
 });
 
-const imageFileFilter = (_request, file, callback) => {
+const uploadFileFilter = (request, file, callback) => {
+  const folder = request.params.folder || request.body.folder;
+
+  if (folder === "documents" || folder === "magazines") {
+    if (file.mimetype !== UPLOAD.PDF_MIME_TYPE) {
+      callback(new Error("Only PDF uploads are allowed in this folder."));
+      return;
+    }
+
+    callback(null, true);
+    return;
+  }
+
   if (!file.mimetype.startsWith(UPLOAD.IMAGE_MIME_PREFIX)) {
     callback(new Error("Only image uploads are allowed."));
     return;
@@ -64,16 +76,32 @@ const imageFileFilter = (_request, file, callback) => {
   callback(null, true);
 };
 
+const galleryFileFilter = (_request, file, callback) => {
+  if (
+    !file.mimetype.startsWith(UPLOAD.IMAGE_MIME_PREFIX)
+    && !file.mimetype.startsWith(UPLOAD.VIDEO_MIME_PREFIX)
+  ) {
+    callback(new Error("Only image and video uploads are allowed for gallery items."));
+    return;
+  }
+
+  callback(null, true);
+};
+
+const getGalleryMediaType = (file) => {
+  return file?.mimetype?.startsWith(UPLOAD.VIDEO_MIME_PREFIX) ? "video" : "image";
+};
+
 const upload = multer({
   storage,
   limits: { fileSize: UPLOAD.MAX_FILE_SIZE_BYTES },
-  fileFilter: imageFileFilter
+  fileFilter: uploadFileFilter
 });
 
 const galleryUpload = multer({
   storage: galleryStorage,
   limits: { fileSize: UPLOAD.MAX_FILE_SIZE_BYTES },
-  fileFilter: imageFileFilter
+  fileFilter: galleryFileFilter
 });
 
 router.post(`${UPLOAD.API_UPLOADS_PREFIX}/:folder`, uploadRateLimiter, upload.single("image"), async (request, response, next) => {
@@ -86,7 +114,7 @@ router.post(`${UPLOAD.API_UPLOADS_PREFIX}/:folder`, uploadRateLimiter, upload.si
     }
 
     if (!request.file) {
-      response.status(400).json({ message: "Image file is required." });
+      response.status(400).json({ message: "Upload file is required." });
       return;
     }
 
@@ -110,22 +138,28 @@ router.delete(UPLOAD.API_UPLOADS_PREFIX, async (request, response, next) => {
 router.get(UPLOAD.API_GALLERY_PREFIX, async (_request, response, next) => {
   try {
     const items = await GalleryItem.find({}).sort({ createdAt: 1, _id: 1 }).lean();
-    response.json(items.map((item) => ({ id: item.id, src: item.src, caption: item.caption })));
+    response.json(items.map((item) => ({
+      id: item.id,
+      src: item.src,
+      mediaType: item.mediaType || "image",
+      caption: item.caption
+    })));
   } catch (error) {
     next(error);
   }
 });
 
-router.post(UPLOAD.API_GALLERY_PREFIX, uploadRateLimiter, galleryUpload.single("image"), async (request, response, next) => {
+router.post(UPLOAD.API_GALLERY_PREFIX, uploadRateLimiter, galleryUpload.single("media"), async (request, response, next) => {
   try {
     if (!request.file) {
-      response.status(400).json({ message: "Image file is required." });
+      response.status(400).json({ message: "Gallery media file is required." });
       return;
     }
 
     const created = {
       id: Date.now(),
       src: createManagedSrc("gallery", request.file.filename),
+      mediaType: getGalleryMediaType(request.file),
       caption: String(request.body.caption || "").trim()
     };
 
@@ -136,7 +170,7 @@ router.post(UPLOAD.API_GALLERY_PREFIX, uploadRateLimiter, galleryUpload.single("
   }
 });
 
-router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUpload.single("image"), async (request, response, next) => {
+router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUpload.single("media"), async (request, response, next) => {
   try {
     const itemId = Number(request.params.id);
     const existingItem = await GalleryItem.findOne({ id: itemId }).lean();
@@ -152,15 +186,20 @@ router.patch(`${UPLOAD.API_GALLERY_PREFIX}/:id`, uploadRateLimiter, galleryUploa
 
     const nextItem = {
       ...existingItem,
+      mediaType: existingItem.mediaType || "image",
       caption: request.body.caption !== undefined ? String(request.body.caption).trim() : existingItem.caption
     };
 
     if (request.file) {
       await removeManagedFile(existingItem.src);
       nextItem.src = createManagedSrc("gallery", request.file.filename);
+      nextItem.mediaType = getGalleryMediaType(request.file);
     }
 
-    await GalleryItem.updateOne({ id: itemId }, { $set: { src: nextItem.src, caption: nextItem.caption } });
+    await GalleryItem.updateOne(
+      { id: itemId },
+      { $set: { src: nextItem.src, mediaType: nextItem.mediaType, caption: nextItem.caption } }
+    );
     response.json(nextItem);
   } catch (error) {
     next(error);

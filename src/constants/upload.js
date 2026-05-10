@@ -4,6 +4,8 @@ const UPLOAD = Object.freeze({
   API_GALLERY_PREFIX: "/api/gallery",
   ALLOWED_FOLDERS: [
     "gallery",
+    "documents",
+    "magazines",
     "placeholders",
     "navbar",
     "hero",
@@ -17,7 +19,9 @@ const UPLOAD = Object.freeze({
     "scholarships"
   ],
   MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
-  IMAGE_MIME_PREFIX: "image/"
+  IMAGE_MIME_PREFIX: "image/",
+  VIDEO_MIME_PREFIX: "video/",
+  PDF_MIME_TYPE: "application/pdf"
 });
 
 module.exports = UPLOAD;

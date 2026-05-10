@@ -72,6 +72,11 @@ router.get(
 );
 
 router.get(
+  "/portal-settings",
+  asyncHandler(controller.getPortalSettings)
+);
+
+router.get(
   "/registration-status",
   asyncHandler(controller.checkRegistrationAvailability)
 );

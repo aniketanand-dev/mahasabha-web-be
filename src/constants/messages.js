@@ -25,6 +25,7 @@ const MESSAGES = Object.freeze({
   },
   SCHOLARSHIPS: {
     APPLICATION_SUBMITTED: "Scholarship application submitted successfully",
+    APPLICATIONS_CLOSED: "Scholarship applications are closed for now",
     STATUS_UPDATED: "Scholarship application status updated successfully",
     AADHAAR_ALREADY_EXISTS: "An application already exists for this Aadhaar number",
     REGISTRATION_NO_ALREADY_EXISTS: "An application already exists for this registration number",
