@@ -7,6 +7,7 @@ const router = express.Router();
 const controller = new AnalyticsController();
 
 router.post("/visit", asyncHandler(controller.trackVisit));
+router.get("/summary", asyncHandler(controller.getPublicStats));
 router.get("/stats", requireAdminAuth, asyncHandler(controller.getStats));
 
 module.exports = router;

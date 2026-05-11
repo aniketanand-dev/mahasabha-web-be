@@ -14,6 +14,7 @@ const BOARD_OPTIONS = new Set(["state", "ICSE", "CBSE", "Other"]);
 const STANDARD_OPTIONS = new Set(["10th", "12th"]);
 const GENDER_OPTIONS = new Set(["Male", "Female", "Other"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const IFSC_PATTERN = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const MAX_IMAGE_UPLOAD_BYTES = 1024 * 1024;
 const IMAGE_UPLOAD_REQUIREMENTS_MESSAGE = "Upload an image file up to 1 MB.";
 const MEMBER_CATEGORY_OPTIONS = new Set([
@@ -501,6 +502,9 @@ class ScholarshipController {
       const district = asTrimmedString(req.body.district);
       const state = asTrimmedString(req.body.state);
       const pinCode = asTrimmedString(req.body.pinCode);
+      const bankName = asTrimmedString(req.body.bankName);
+      const accountNumber = asTrimmedString(req.body.accountNumber);
+      const ifscCode = asTrimmedString(req.body.ifscCode).toUpperCase();
       const aadhaarNumber = asTrimmedString(req.body.aadhaarNumber);
       const board = asTrimmedString(req.body.board);
       const otherBoard = asTrimmedString(req.body.otherBoard);
@@ -526,7 +530,7 @@ class ScholarshipController {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!village || !taluk || !district || !state || !pinCode) {
+      if (!village || !taluk || !district || !state || !pinCode || !bankName || !accountNumber || !ifscCode) {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
@@ -557,6 +561,10 @@ class ScholarshipController {
       }
 
       if (!/^\d{6}$/.test(pinCode)) {
+        throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (!/^\d{9,18}$/.test(accountNumber) || !IFSC_PATTERN.test(ifscCode)) {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
@@ -629,6 +637,9 @@ class ScholarshipController {
         district,
         state,
         pinCode,
+        bankName,
+        accountNumber,
+        ifscCode,
         aadhaarNumber,
         aadhaarShareCode: "",
         board,

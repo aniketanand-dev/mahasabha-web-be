@@ -14,6 +14,20 @@ const readCounterValue = async (counterId) => {
   return Number(counter?.value || 0);
 };
 
+const readStatsPayload = async () => {
+  const [totalVisits, uniqueVisitors, lastVisitor] = await Promise.all([
+    readCounterValue(TOTAL_VISITS_COUNTER_ID),
+    readCounterValue(UNIQUE_VISITORS_COUNTER_ID),
+    SiteVisitor.findOne({}).sort({ lastVisitedAt: -1, _id: -1 }).lean(),
+  ]);
+
+  return {
+    totalVisits,
+    uniqueVisitors,
+    lastVisitedAt: lastVisitor?.lastVisitedAt || null,
+  };
+};
+
 class AnalyticsController {
   trackVisit = async (req, res) => {
     const visitorId = asTrimmedString(req.body?.visitorId);
@@ -70,17 +84,11 @@ class AnalyticsController {
   };
 
   getStats = async (_req, res) => {
-    const [totalVisits, uniqueVisitors, lastVisitor] = await Promise.all([
-      readCounterValue(TOTAL_VISITS_COUNTER_ID),
-      readCounterValue(UNIQUE_VISITORS_COUNTER_ID),
-      SiteVisitor.findOne({}).sort({ lastVisitedAt: -1, _id: -1 }).lean(),
-    ]);
+    return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, await readStatsPayload());
+  };
 
-    return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, {
-      totalVisits,
-      uniqueVisitors,
-      lastVisitedAt: lastVisitor?.lastVisitedAt || null,
-    });
+  getPublicStats = async (_req, res) => {
+    return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, await readStatsPayload());
   };
 }
 
