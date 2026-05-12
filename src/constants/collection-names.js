@@ -12,6 +12,7 @@ const COLLECTION_NAMES = Object.freeze({
   PRESIDENT_MESSAGE_CONTENT: "presidentmessagecontent",
   BHAVAN_SECTION_CONTENT: "bhavansectioncontent",
   NAVBAR_SECTION_CONTENT: "navbarsectioncontent",
+  DAILY_VACHANA_CONTENT: "dailyvachanacontent",
   SCHOLARSHIP_SETTINGS_CONTENT: "scholarshipsettingscontent",
   FOOTER_SECTION_CONTENT: "footersectioncontent",
   COMMUNITY_LEADERS_CONTENT: "communityleaderscontent",
@@ -21,7 +22,8 @@ const COLLECTION_NAMES = Object.freeze({
   ORG_STRUCTURE_CONTENT: "orgstructurecontent",
   VISIONARIES_CONTENT: "visionariescontent",
   MISSION_VISION_CONTENT: "missionvisioncontent",
-  HOSTELS_DIRECTORY_CONTENT: "hostelsdirectorycontent"
+  HOSTELS_DIRECTORY_CONTENT: "hostelsdirectorycontent",
+  HOSTELS: "hostels"
 });
 
 module.exports = COLLECTION_NAMES;

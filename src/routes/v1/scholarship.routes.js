@@ -86,6 +86,12 @@ router.get(
   asyncHandler(controller.listAcademicYears)
 );
 
+router.post(
+  "/academic-years",
+  requireAdminAuth,
+  asyncHandler(controller.createAcademicYear)
+);
+
 router.get(
   "/applications",
   requireAdminAuth,

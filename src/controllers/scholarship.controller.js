@@ -35,7 +35,23 @@ const MEMBER_CATEGORY_OPTIONS = new Set([
 const SCHOLARSHIP_COUNTER_ID = "scholarshipApplications";
 const SCHOLARSHIP_SETTINGS_MODEL = SECTION_CONTENT_MODELS.adm_scholarship_settings;
 const SCHOLARSHIP_SETTINGS_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const SCHOLARSHIP_SETTINGS_DISPLAY_YEAR_PATTERN = /^\d{4}-\d{2}$/;
+
+const createDisplayYearLabel = (startYear) => {
+  const endYearShort = String((startYear + 1) % 100).padStart(2, "0");
+  return `${startYear}-${endYearShort}`;
+};
+
+const getDefaultDisplayYearLabel = (referenceDate = new Date()) => {
+  const startYear = referenceDate.getMonth() < 5
+    ? referenceDate.getFullYear() - 1
+    : referenceDate.getFullYear();
+
+  return createDisplayYearLabel(startYear);
+};
+
 const DEFAULT_SCHOLARSHIP_SETTINGS = Object.freeze({
+  displayYear: getDefaultDisplayYearLabel(),
   applicationDeadline: "",
   closedTitle: "Scholarship Applications Closed",
   closedMessage: "The scholarship application period has ended. Please check back for the next cycle.",
@@ -45,6 +61,26 @@ const asTrimmedString = (value) => String(value || "").trim();
 const parseNumber = (value) => Number.parseFloat(String(value || "").trim());
 const parseBoolean = (value) => value === true || String(value).toLowerCase() === "true";
 const isValidMarksInput = (value) => /^\d{1,4}$/.test(String(value || "").trim());
+const parseLocalDateTime = (value) => {
+  const match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute] = match;
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    0,
+    0
+  );
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 const createAcademicYearLabel = (startYear) => `AY-${startYear}-${startYear + 1}`;
 
@@ -120,6 +156,16 @@ const formatAcademicYear = (academicYear) => ({
   startYear: academicYear.startYear,
 });
 
+const getNextAcademicYearStart = async () => {
+  const latest = await AcademicYear.findOne({}).sort({ startYear: -1, label: -1 }).lean();
+
+  if (latest?.startYear) {
+    return latest.startYear + 1;
+  }
+
+  return parseAcademicYearStart(getDefaultAcademicYearLabel());
+};
+
 const ensureDefaultAcademicYear = async () => {
   const label = getDefaultAcademicYearLabel();
   const startYear = parseAcademicYearStart(label);
@@ -134,8 +180,32 @@ const ensureDefaultAcademicYear = async () => {
 };
 
 const listAcademicYearDocuments = async () => {
-  const ensured = await ensureDefaultAcademicYear();
-  return [ensured];
+  await ensureDefaultAcademicYear();
+  return AcademicYear.find({}).sort({ startYear: 1, label: 1 }).lean();
+};
+
+const getPreviousAcademicYearStart = async () => {
+  const earliest = await AcademicYear.findOne({}).sort({ startYear: 1, label: 1 }).lean();
+
+  if (earliest?.startYear) {
+    return earliest.startYear - 1;
+  }
+
+  return parseAcademicYearStart(getDefaultAcademicYearLabel()) - 1;
+};
+
+const createAcademicYearDocument = async (direction = "next") => {
+  const startYear = direction === "previous"
+    ? await getPreviousAcademicYearStart()
+    : await getNextAcademicYearStart();
+  const label = createAcademicYearLabel(startYear);
+
+  const existing = await AcademicYear.findOne({ startYear }).lean();
+  if (existing) {
+    return existing;
+  }
+
+  return AcademicYear.create({ label, startYear });
 };
 
 const resolveAcademicYear = async (academicYearId, { allowDefault = false } = {}) => {
@@ -213,11 +283,15 @@ const buildArchiveBaseName = (application) => {
 
 const normalizeScholarshipSettings = (value) => {
   const next = value && typeof value === "object" ? value : {};
+  const displayYear = SCHOLARSHIP_SETTINGS_DISPLAY_YEAR_PATTERN.test(String(next.displayYear || "").trim())
+    ? String(next.displayYear).trim()
+    : DEFAULT_SCHOLARSHIP_SETTINGS.displayYear;
   const applicationDeadline = SCHOLARSHIP_SETTINGS_DATETIME_PATTERN.test(String(next.applicationDeadline || "").trim())
     ? String(next.applicationDeadline).trim()
     : "";
 
   return {
+    displayYear,
     applicationDeadline,
     closedTitle: asTrimmedString(next.closedTitle) || DEFAULT_SCHOLARSHIP_SETTINGS.closedTitle,
     closedMessage: asTrimmedString(next.closedMessage) || DEFAULT_SCHOLARSHIP_SETTINGS.closedMessage,
@@ -232,7 +306,7 @@ const readScholarshipSettings = async () => {
 const buildScholarshipPortalState = (settings, referenceDate = new Date()) => {
   const normalized = normalizeScholarshipSettings(settings);
   const deadlineCutoff = normalized.applicationDeadline
-    ? new Date(normalized.applicationDeadline)
+    ? parseLocalDateTime(normalized.applicationDeadline)
     : null;
 
   return {
@@ -395,6 +469,15 @@ class ScholarshipController {
     });
   };
 
+  createAcademicYear = async (req, res) => {
+    const direction = String(req.body?.direction || "next").toLowerCase();
+    const academicYear = await createAcademicYearDocument(direction === "previous" ? "previous" : "next");
+
+    return sendSuccess(res, STATUS_CODES.CREATED, MESSAGES.COMMON.SUCCESS, {
+      item: formatAcademicYear(academicYear),
+    });
+  };
+
   exportApplicationsZip = async (req, res) => {
     const academicYearId = asTrimmedString(req.query.academicYearId);
     const filters = [];
@@ -502,7 +585,9 @@ class ScholarshipController {
       const district = asTrimmedString(req.body.district);
       const state = asTrimmedString(req.body.state);
       const pinCode = asTrimmedString(req.body.pinCode);
+      const accountHolderName = asTrimmedString(req.body.accountHolderName);
       const bankName = asTrimmedString(req.body.bankName);
+      const bankBranchName = asTrimmedString(req.body.bankBranchName);
       const accountNumber = asTrimmedString(req.body.accountNumber);
       const ifscCode = asTrimmedString(req.body.ifscCode).toUpperCase();
       const aadhaarNumber = asTrimmedString(req.body.aadhaarNumber);
@@ -530,7 +615,7 @@ class ScholarshipController {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!village || !taluk || !district || !state || !pinCode || !bankName || !accountNumber || !ifscCode) {
+      if (!village || !taluk || !district || !state || !pinCode || !accountHolderName || !bankName || !bankBranchName || !accountNumber || !ifscCode) {
         throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
       }
 
@@ -637,7 +722,9 @@ class ScholarshipController {
         district,
         state,
         pinCode,
+        accountHolderName,
         bankName,
+        bankBranchName,
         accountNumber,
         ifscCode,
         aadhaarNumber,

@@ -32,6 +32,7 @@ const SECTION_CONTENT_MODELS = Object.freeze({
   adm_president_note_content: buildSectionModel("PresidentMessageContent", COLLECTION_NAMES.PRESIDENT_MESSAGE_CONTENT),
   adm_bhavan_content: buildSectionModel("BhavanSectionContent", COLLECTION_NAMES.BHAVAN_SECTION_CONTENT),
   adm_navbar_content: buildSectionModel("NavbarSectionContent", COLLECTION_NAMES.NAVBAR_SECTION_CONTENT),
+  adm_daily_vachana: buildSectionModel("DailyVachanaContent", COLLECTION_NAMES.DAILY_VACHANA_CONTENT),
   adm_scholarship_settings: buildSectionModel("ScholarshipSettingsContent", COLLECTION_NAMES.SCHOLARSHIP_SETTINGS_CONTENT),
   adm_footer_content: buildSectionModel("FooterSectionContent", COLLECTION_NAMES.FOOTER_SECTION_CONTENT),
   adm_cm_leaders: buildSectionModel("CommunityLeadersContent", COLLECTION_NAMES.COMMUNITY_LEADERS_CONTENT),
