@@ -458,6 +458,7 @@ class ScholarshipController {
       'marksCardUrl',
       'aadhaarCardUrl',
       'aadhaarOfflineFileUrl',
+      'rejectionComment',
       'submittedAt',
       'createdAt'
     ].join(' ');
