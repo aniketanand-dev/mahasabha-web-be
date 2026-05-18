@@ -48,6 +48,8 @@ app.use(
     next();
   },
   express.static(paths.uploadsRootDir, {
+    maxAge: "30d",
+    immutable: true,
     setHeaders: (response) => {
       response.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     }

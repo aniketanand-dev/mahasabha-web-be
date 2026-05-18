@@ -61,4 +61,10 @@ const scholarshipApplicationSchema = new mongoose.Schema(
 scholarshipApplicationSchema.index({ academicYearId: 1, registrationNo: 1 }, { unique: true });
 scholarshipApplicationSchema.index({ academicYearId: 1, aadhaarNumber: 1 }, { unique: true });
 
+// Performance indexes for list queries
+scholarshipApplicationSchema.index({ academicYearId: 1, submittedAt: -1 });
+scholarshipApplicationSchema.index({ academicYearId: 1, status: 1, submittedAt: -1 });
+scholarshipApplicationSchema.index({ state: 1, district: 1, taluk: 1 });
+scholarshipApplicationSchema.index({ submittedAt: -1, _id: -1 });
+
 module.exports = mongoose.model("ScholarshipApplication", scholarshipApplicationSchema);

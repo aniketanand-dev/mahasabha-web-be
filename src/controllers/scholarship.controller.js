@@ -426,7 +426,45 @@ class ScholarshipController {
 
     const filter = mergeFilters(...filters);
 
-    const baseQuery = ScholarshipApplication.find(filter).sort({ submittedAt: -1, _id: -1 });
+    // Define fields needed for list display to reduce payload size
+    const listFields = [
+      '_id',
+      'applicationNumber',
+      'serialNumber',
+      'registrationNo',
+      'firstName',
+      'middleName',
+      'lastName',
+      'gender',
+      'fatherName',
+      'motherName',
+      'academicYear',
+      'board',
+      'standard',
+      'marksObtained',
+      'totalMarks',
+      'percentage',
+      'status',
+      'mobile',
+      'emailId',
+      'aadhaarNumber',
+      'village',
+      'taluk',
+      'district',
+      'state',
+      'pinCode',
+      'profilePhotoUrl',
+      'casteCertificateUrl',
+      'marksCardUrl',
+      'aadhaarCardUrl',
+      'aadhaarOfflineFileUrl',
+      'submittedAt',
+      'createdAt'
+    ].join(' ');
+
+    const baseQuery = ScholarshipApplication.find(filter)
+      .select(listFields)
+      .sort({ submittedAt: -1, _id: -1 });
 
     if (fetchAll) {
       const items = await baseQuery.lean();
@@ -441,14 +479,17 @@ class ScholarshipController {
       });
     }
 
-    const totalItems = await ScholarshipApplication.countDocuments(filter);
+    // Run count and find queries in parallel for better performance
+    const [totalItems, items] = await Promise.all([
+      ScholarshipApplication.countDocuments(filter),
+      baseQuery
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+    ]);
+
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
     const safePage = totalPages > 0 ? Math.min(page, totalPages) : 1;
-
-    const items = await baseQuery
-      .skip((safePage - 1) * limit)
-      .limit(limit)
-      .lean();
 
     return sendSuccess(res, STATUS_CODES.OK, MESSAGES.COMMON.SUCCESS, {
       items,
