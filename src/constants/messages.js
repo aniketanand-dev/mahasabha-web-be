@@ -38,6 +38,20 @@ const MESSAGES = Object.freeze({
     REJECTION_COMMENT_REQUIRED: "Rejection comment is required when rejecting an application",
     INVALID_REFERRING_MEMBER_CATEGORY: "Please select a valid membership or contribution category",
     REFERRING_MEMBER_DETAILS_REQUIRED: "Please enter the referring member details"
+  },
+  ORG_STRUCTURE: {
+    CREATED: "Organization structure member created successfully",
+    UPDATED: "Organization structure member updated successfully",
+    DELETED: "Organization structure member deleted successfully",
+    NOT_FOUND: "Organization structure member not found",
+    INVALID_PAYLOAD: "Please provide valid organization member data",
+    INVALID_LOCATION_HIERARCHY: "Location hierarchy must match the selected organization level",
+    PARENT_REQUIRED: "Parent member is required for district and taluk levels",
+    INVALID_PARENT: "Selected parent member is not valid for this level",
+    PARENT_NOT_FOUND: "Selected parent member not found",
+    INVALID_PARENT_LOCATION: "Selected parent member location does not match this member",
+    HIERARCHY_CHANGE_BLOCKED: "Cannot change level or location while this member has child members",
+    HAS_CHILDREN: "Delete child members first before deleting this member"
   }
 });
 

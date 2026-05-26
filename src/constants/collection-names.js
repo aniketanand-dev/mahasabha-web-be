@@ -23,7 +23,8 @@ const COLLECTION_NAMES = Object.freeze({
   VISIONARIES_CONTENT: "visionariescontent",
   MISSION_VISION_CONTENT: "missionvisioncontent",
   HOSTELS_DIRECTORY_CONTENT: "hostelsdirectorycontent",
-  HOSTELS: "hostels"
+  HOSTELS: "hostels",
+  ORGANIZATION_STRUCTURE_NODES: "organizationstructurenodes"
 });
 
 module.exports = COLLECTION_NAMES;
