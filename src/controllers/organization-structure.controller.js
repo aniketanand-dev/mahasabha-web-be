@@ -21,6 +21,8 @@ const SIMPLE_SECTION_LABELS = Object.freeze([
 ]);
 
 const STATE_COMMITTEE_LABEL = "state-committee";
+const TALUK_COMMITTEE_LABEL = "taluk-committee";
+const TALUK_COMMITTEE_MEMBER_LABEL = "taluk-committee-member";
 const REPRESENTATIVE_SECTION_LABEL = "representative-general-body";
 
 const normalizeString = (value) => String(value || "").trim();
@@ -233,15 +235,32 @@ class OrganizationStructureController {
         && normalizeString(parentNode.location?.district) === location.district
         && normalizeString(parentNode.location?.taluk) === location.taluk;
 
+      const allowTalukCommitteeContainerParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
+        && normalizeLabel(sidebarLabel) === TALUK_COMMITTEE_LABEL
+        && parentNode.level === "taluk"
+        && level === "taluk"
+        && parentNode.location.state === location.state
+        && parentNode.location.district === location.district
+        && parentNode.location.taluk === location.taluk;
+
+      const allowTalukCommitteeMemberParent = normalizeLabel(parentNode.sidebarLabel) === TALUK_COMMITTEE_LABEL
+        && normalizeLabel(sidebarLabel) === TALUK_COMMITTEE_MEMBER_LABEL
+        && parentNode.level === level
+        && parentNode.location.state === location.state
+        && normalizeString(parentNode.location?.district) === location.district
+        && normalizeString(parentNode.location?.taluk) === location.taluk;
+
       const allowEqualLevelParent = allowRepresentativeStateCommitteeParent
         || allowStateCommitteeContainerParent
-        || allowStateCommitteeMemberParent;
+        || allowStateCommitteeMemberParent
+        || allowTalukCommitteeContainerParent
+        || allowTalukCommitteeMemberParent;
 
       if (!allowSimpleSectionParent && !allowEqualLevelParent && LEVEL_ORDER[parentNode.level] >= LEVEL_ORDER[level]) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!allowStateCommitteeContainerParent && parentNode.location.state !== location.state) {
+      if (!allowStateCommitteeContainerParent && !allowTalukCommitteeContainerParent && parentNode.location.state !== location.state) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
       }
 
@@ -264,6 +283,14 @@ class OrganizationStructureController {
       }
 
       if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "taluk" && parentNode.location.district !== location.district) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (allowTalukCommitteeContainerParent && (location.district !== parentNode.location.district || location.taluk !== parentNode.location.taluk)) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (allowTalukCommitteeMemberParent && (location.district !== parentNode.location.district || location.taluk !== parentNode.location.taluk)) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
       }
     } else if (level !== "state") {
