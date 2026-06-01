@@ -166,21 +166,7 @@ const getNextAcademicYearStart = async () => {
   return parseAcademicYearStart(getDefaultAcademicYearLabel());
 };
 
-const ensureDefaultAcademicYear = async () => {
-  const label = getDefaultAcademicYearLabel();
-  const startYear = parseAcademicYearStart(label);
-
-  let academicYear = await AcademicYear.findOne({ startYear }).lean();
-  if (academicYear) {
-    return academicYear;
-  }
-
-  academicYear = await AcademicYear.create({ label, startYear });
-  return academicYear.toObject();
-};
-
 const listAcademicYearDocuments = async () => {
-  await ensureDefaultAcademicYear();
   return AcademicYear.find({}).sort({ startYear: 1, label: 1 }).lean();
 };
 
@@ -208,14 +194,10 @@ const createAcademicYearDocument = async (direction = "next") => {
   return AcademicYear.create({ label, startYear });
 };
 
-const resolveAcademicYear = async (academicYearId, { allowDefault = false } = {}) => {
+const resolveAcademicYear = async (academicYearId) => {
   const normalizedId = asTrimmedString(academicYearId);
 
   if (!normalizedId) {
-    if (allowDefault) {
-      return ensureDefaultAcademicYear();
-    }
-
     throw new AppError(MESSAGES.COMMON.VALIDATION_ERROR, STATUS_CODES.BAD_REQUEST);
   }
 
@@ -645,7 +627,7 @@ class ScholarshipController {
       const board = asTrimmedString(req.body.board);
       const otherBoard = asTrimmedString(req.body.otherBoard);
       const standard = asTrimmedString(req.body.standard);
-      const academicYear = await resolveAcademicYear(req.body.academicYearId, { allowDefault: true });
+      const academicYear = await resolveAcademicYear(req.body.academicYearId);
       const marksObtained = parseNumber(req.body.marksObtained);
       const totalMarks = parseNumber(req.body.totalMarks);
       const percentage = parseNumber(req.body.percentage);
