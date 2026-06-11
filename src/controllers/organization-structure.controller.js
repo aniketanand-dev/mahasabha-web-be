@@ -10,11 +10,15 @@ const {
 const LEVEL_ORDER = Object.freeze({
   state: 0,
   district: 1,
+  city: 1,
+  corporation: 2,
+  assembly: 3,
   taluk: 2
 });
 
 const SIMPLE_SECTION_LABELS = Object.freeze([
   "president-office",
+  "office-bearer",
   "working-committee",
   "representative-general-body",
   "nominated-body"
@@ -191,6 +195,12 @@ class OrganizationStructureController {
       }
     }
 
+    if (level === "city" || level === "corporation" || level === "assembly") {
+      if (location.district || location.taluk) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_LOCATION_HIERARCHY, STATUS_CODES.BAD_REQUEST);
+      }
+    }
+
     if (level === "taluk") {
       if (!location.district || !location.taluk) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_LOCATION_HIERARCHY, STATUS_CODES.BAD_REQUEST);
@@ -270,7 +280,7 @@ class OrganizationStructureController {
         }
       }
 
-      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "district" && parentNode.level !== "state") {
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && (level === "district" || level === "city") && parentNode.level !== "state") {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
       }
 
@@ -278,7 +288,15 @@ class OrganizationStructureController {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "district" && parentNode.location.district) {
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "corporation" && parentNode.level !== "city") {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "assembly" && parentNode.level !== "corporation") {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && (level === "district" || level === "city") && parentNode.location.district) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
       }
 

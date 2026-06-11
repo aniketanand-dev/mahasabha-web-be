@@ -46,7 +46,7 @@ const MESSAGES = Object.freeze({
     NOT_FOUND: "Organization structure member not found",
     INVALID_PAYLOAD: "Please provide valid organization member data",
     INVALID_LOCATION_HIERARCHY: "Location hierarchy must match the selected organization level",
-    PARENT_REQUIRED: "Parent member is required for district and taluk levels",
+    PARENT_REQUIRED: "Parent member is required for district, city, corporation, assembly, and taluk levels",
     INVALID_PARENT: "Selected parent member is not valid for this level",
     PARENT_NOT_FOUND: "Selected parent member not found",
     INVALID_PARENT_LOCATION: "Selected parent member location does not match this member",

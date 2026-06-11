@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const { COLLECTION_NAMES } = require("../constants");
 
-const ORGANIZATION_LEVELS = Object.freeze(["state", "district", "taluk"]);
+const ORGANIZATION_LEVELS = Object.freeze(["state", "district", "city", "corporation", "assembly", "taluk"]);
 
 const locationSchema = new mongoose.Schema(
   {
