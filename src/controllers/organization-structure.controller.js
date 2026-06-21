@@ -25,6 +25,7 @@ const SIMPLE_SECTION_LABELS = Object.freeze([
 ]);
 
 const STATE_COMMITTEE_LABEL = "state-committee";
+const STATE_COMMITTEE_MEMBER_LABEL = "state-committee-member";
 const TALUK_COMMITTEE_LABEL = "taluk-committee";
 const TALUK_COMMITTEE_MEMBER_LABEL = "taluk-committee-member";
 const REPRESENTATIVE_SECTION_LABEL = "representative-general-body";
@@ -239,7 +240,10 @@ class OrganizationStructureController {
         && level === "state";
 
       const allowStateCommitteeMemberParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
-        && normalizeLabel(sidebarLabel) === STATE_COMMITTEE_LABEL
+        && (
+          normalizeLabel(sidebarLabel) === STATE_COMMITTEE_LABEL
+          || normalizeLabel(sidebarLabel) === STATE_COMMITTEE_MEMBER_LABEL
+        )
         && parentNode.level === level
         && parentNode.location.state === location.state
         && normalizeString(parentNode.location?.district) === location.district

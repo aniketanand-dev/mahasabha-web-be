@@ -46,6 +46,8 @@ Gallery items are stored in a JSON file used by the media routes.
 
 `/api/v1`
 
+Full endpoint reference: [API_DOCS.md](./API_DOCS.md)
+
 ## Nginx Reverse Proxy
 
 For production, prefer serving the Angular frontend and backend through the same Nginx domain.
