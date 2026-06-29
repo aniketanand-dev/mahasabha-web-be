@@ -33,6 +33,7 @@ const REPRESENTATIVE_SECTION_LABEL = "representative-general-body";
 const normalizeString = (value) => String(value || "").trim();
 const normalizeLabel = (value) => normalizeString(value).toLowerCase();
 const isSimpleSectionLabel = (value) => SIMPLE_SECTION_LABELS.includes(normalizeLabel(value));
+const stateAllowsCityLevel = (state) => normalizeLabel(state) === normalizeLabel("karnataka");
 const isStateCommitteeContainerNode = (node) => normalizeLabel(node?.sidebarLabel) === STATE_COMMITTEE_LABEL
   && normalizeLabel(node?.designation) === "state committee"
   && normalizeLabel(node?.level) === "state"
@@ -202,6 +203,10 @@ class OrganizationStructureController {
       }
     }
 
+    if (level === "city" && !stateAllowsCityLevel(location.state)) {
+      throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_LOCATION_HIERARCHY, STATUS_CODES.BAD_REQUEST);
+    }
+
     if (level === "taluk") {
       if (!location.district || !location.taluk) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_LOCATION_HIERARCHY, STATUS_CODES.BAD_REQUEST);
@@ -249,6 +254,15 @@ class OrganizationStructureController {
         && normalizeString(parentNode.location?.district) === location.district
         && normalizeString(parentNode.location?.taluk) === location.taluk;
 
+      const allowStateNominatedParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
+        && !isStateCommitteeContainerNode(parentNode)
+        && normalizeLabel(sidebarLabel) === "nominated-body"
+        && parentNode.level === "state"
+        && level === "state"
+        && parentNode.location.state === location.state
+        && !location.district
+        && !location.taluk;
+
       const allowTalukCommitteeContainerParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
         && normalizeLabel(sidebarLabel) === TALUK_COMMITTEE_LABEL
         && parentNode.level === "taluk"
@@ -256,6 +270,13 @@ class OrganizationStructureController {
         && parentNode.location.state === location.state
         && parentNode.location.district === location.district
         && parentNode.location.taluk === location.taluk;
+
+      const allowDirectStateCorporationParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
+        && !isStateCommitteeContainerNode(parentNode)
+        && parentNode.level === "state"
+        && level === "corporation"
+        && !stateAllowsCityLevel(location.state)
+        && parentNode.location.state === location.state;
 
       const allowTalukCommitteeMemberParent = normalizeLabel(parentNode.sidebarLabel) === TALUK_COMMITTEE_LABEL
         && normalizeLabel(sidebarLabel) === TALUK_COMMITTEE_MEMBER_LABEL
@@ -267,6 +288,8 @@ class OrganizationStructureController {
       const allowEqualLevelParent = allowRepresentativeStateCommitteeParent
         || allowStateCommitteeContainerParent
         || allowStateCommitteeMemberParent
+        || allowStateNominatedParent
+        || allowDirectStateCorporationParent
         || allowTalukCommitteeContainerParent
         || allowTalukCommitteeMemberParent;
 
