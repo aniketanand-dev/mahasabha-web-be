@@ -34,6 +34,24 @@ const normalizeString = (value) => String(value || "").trim();
 const normalizeLabel = (value) => normalizeString(value).toLowerCase();
 const isSimpleSectionLabel = (value) => SIMPLE_SECTION_LABELS.includes(normalizeLabel(value));
 const stateAllowsCityLevel = (state) => normalizeLabel(state) === normalizeLabel("karnataka");
+const titleUsesCityLevel = (value) => {
+  const normalized = normalizeLabel(value);
+  return normalized.includes("bengaluru") || normalized.includes("bangalore");
+};
+const branchUsesCityLevel = ({ state, name, designation, district = "" } = {}) =>
+  stateAllowsCityLevel(state)
+  && (
+    titleUsesCityLevel(name)
+    || titleUsesCityLevel(designation)
+    || titleUsesCityLevel(district)
+  );
+const isLegacyCorporationCityNode = (node) => normalizeLabel(node?.level) === "city"
+  && !branchUsesCityLevel({
+    state: node?.location?.state,
+    name: node?.name,
+    designation: node?.designation,
+    district: node?.location?.district
+  });
 const isStateCommitteeContainerNode = (node) => normalizeLabel(node?.sidebarLabel) === STATE_COMMITTEE_LABEL
   && normalizeLabel(node?.designation) === "state committee"
   && normalizeLabel(node?.level) === "state"
@@ -198,12 +216,26 @@ class OrganizationStructureController {
     }
 
     if (level === "city" || level === "corporation" || level === "assembly") {
-      if (location.district || location.taluk) {
+      if (location.taluk) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_LOCATION_HIERARCHY, STATUS_CODES.BAD_REQUEST);
       }
     }
 
-    if (level === "city" && !stateAllowsCityLevel(location.state)) {
+    const allowExistingLegacyCityNode = !!existingNode
+      && normalizeLabel(existingNode.level) === "city"
+      && level === "city"
+      && isLegacyCorporationCityNode(existingNode);
+
+    if (
+      level === "city"
+      && !allowExistingLegacyCityNode
+      && !branchUsesCityLevel({
+        state: location.state,
+        name,
+        designation,
+        district: location.district
+      })
+    ) {
       throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_LOCATION_HIERARCHY, STATUS_CODES.BAD_REQUEST);
     }
 
@@ -230,6 +262,12 @@ class OrganizationStructureController {
       }
 
       const parentIsSimpleSection = isSimpleSectionLabel(parentNode.sidebarLabel);
+      const parentUsesCityLevel = branchUsesCityLevel({
+        state: parentNode.location?.state,
+        name: parentNode.name,
+        designation: parentNode.designation,
+        district: parentNode.location?.district
+      });
       const allowSimpleSectionParent = isSimpleSection
         && parentIsSimpleSection
         && normalizeLabel(parentNode.sidebarLabel) === normalizeLabel(sidebarLabel)
@@ -271,11 +309,22 @@ class OrganizationStructureController {
         && parentNode.location.district === location.district
         && parentNode.location.taluk === location.taluk;
 
-      const allowDirectStateCorporationParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
-        && !isStateCommitteeContainerNode(parentNode)
-        && parentNode.level === "state"
-        && level === "corporation"
-        && !stateAllowsCityLevel(location.state)
+      const allowExistingStateScopedStructureParent = !!existingNode
+        && (level === "city" || level === "corporation")
+        && normalizeLabel(existingNode.level) === level
+        && String(existingNode.parentNodeId || "") === String(parentNode._id)
+        && parentNode.level === "state";
+
+      const allowDistrictCityParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
+        && parentNode.level === "district"
+        && level === "city"
+        && parentNode.location.state === location.state
+        && parentUsesCityLevel
+        && parentNode.location.district === location.district;
+
+      const allowLegacyCityAssemblyParent = normalizeLabel(parentNode.sidebarLabel) === STATE_COMMITTEE_LABEL
+        && isLegacyCorporationCityNode(parentNode)
+        && level === "assembly"
         && parentNode.location.state === location.state;
 
       const allowTalukCommitteeMemberParent = normalizeLabel(parentNode.sidebarLabel) === TALUK_COMMITTEE_LABEL
@@ -289,7 +338,9 @@ class OrganizationStructureController {
         || allowStateCommitteeContainerParent
         || allowStateCommitteeMemberParent
         || allowStateNominatedParent
-        || allowDirectStateCorporationParent
+        || allowExistingStateScopedStructureParent
+        || allowDistrictCityParent
+        || allowLegacyCityAssemblyParent
         || allowTalukCommitteeContainerParent
         || allowTalukCommitteeMemberParent;
 
@@ -307,7 +358,21 @@ class OrganizationStructureController {
         }
       }
 
-      if (!allowSimpleSectionParent && !allowEqualLevelParent && (level === "district" || level === "city") && parentNode.level !== "state") {
+      if (
+        !allowSimpleSectionParent
+        && !allowEqualLevelParent
+        && level === "district"
+        && parentNode.level !== "state"
+      ) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (
+        !allowSimpleSectionParent
+        && !allowEqualLevelParent
+        && level === "city"
+        && parentNode.level !== "district"
+      ) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
       }
 
@@ -315,19 +380,78 @@ class OrganizationStructureController {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "corporation" && parentNode.level !== "city") {
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "corporation" && parentNode.level !== "city" && parentNode.level !== "district") {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "assembly" && parentNode.level !== "corporation") {
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "corporation" && parentNode.level === "district" && parentUsesCityLevel) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
       }
 
-      if (!allowSimpleSectionParent && !allowEqualLevelParent && (level === "district" || level === "city") && parentNode.location.district) {
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "corporation" && isLegacyCorporationCityNode(parentNode)) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (
+        !allowSimpleSectionParent
+        && !allowEqualLevelParent
+        && level === "assembly"
+        && parentNode.level !== "corporation"
+        && parentNode.level !== "city"
+      ) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "assembly" && parentNode.level === "city" && parentUsesCityLevel) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "district" && parentNode.location.district) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (
+        !allowSimpleSectionParent
+        && !allowEqualLevelParent
+        && level === "city"
+        && parentNode.level === "district"
+        && parentNode.location.district !== location.district
+      ) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
       }
 
       if (!allowSimpleSectionParent && !allowEqualLevelParent && level === "taluk" && parentNode.location.district !== location.district) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (
+        !allowSimpleSectionParent
+        && !allowEqualLevelParent
+        && level === "corporation"
+        && parentNode.level === "district"
+        && parentNode.location.district !== location.district
+      ) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (
+        !allowSimpleSectionParent
+        && !allowEqualLevelParent
+        && level === "corporation"
+        && parentNode.level === "city"
+        && normalizeString(parentNode.location?.district)
+        && parentNode.location.district !== location.district
+      ) {
+        throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
+      }
+
+      if (
+        !allowSimpleSectionParent
+        && !allowEqualLevelParent
+        && level === "assembly"
+        && normalizeString(parentNode.location?.district)
+        && parentNode.location.district !== location.district
+      ) {
         throw new AppError(MESSAGES.ORG_STRUCTURE.INVALID_PARENT_LOCATION, STATUS_CODES.BAD_REQUEST);
       }
 
